@@ -8,7 +8,7 @@ const bot = new TelegramBot(token, { polling: true });
 const app = express();
 app.use(express.json());
 
-// Device register API (App se data aayega)
+// Device register API
 let devices = {};
 
 app.post('/api/register-device', (req, res) => {
