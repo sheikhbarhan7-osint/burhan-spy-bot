@@ -11,7 +11,7 @@ const app = express();
 app.use(express.json());
 
 // 📁 DATA STORE KARNE KE LIYE FILE
-const dataFile = path.join('/app/data', 'devices.json');
+const dataFile = path.join(__dirname, 'devices.json');
 let devices = {};
 if (fs.existsSync(dataFile)) {
     devices = JSON.parse(fs.readFileSync(dataFile, 'utf8'));
