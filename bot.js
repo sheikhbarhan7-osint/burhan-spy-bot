@@ -7,9 +7,9 @@ const bot = new TelegramBot(token, { polling: true });
 const app = express();
 app.use(express.json());
 
-// Device Register API
 let devices = {};
 
+// Device Register API
 app.post('/api/register-device', (req, res) => {
     const { deviceId, deviceName, phoneNumber, battery, ip, sim, online, time } = req.body;
     devices[deviceId] = { 
@@ -48,7 +48,6 @@ app.post('/api/upload-data', (req, res) => {
     res.json({ success: true });
 });
 
-// Bot ko commands sunna hai
 bot.onText(/\/start/, (msg) => {
     const chatId = msg.chat.id;
     if (!isAuthorized(msg)) {
