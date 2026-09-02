@@ -10,7 +10,6 @@ app.use(express.json());
 
 let devices = {};
 
-// Device Register API
 app.post('/api/register-device', (req, res) => {
     const { deviceId, deviceName, phoneNumber, battery, ip, sim, online, time } = req.body;
     devices[deviceId] = { 
