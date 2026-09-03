@@ -244,10 +244,10 @@ def webhook():
     try:
         logger.info(">>> WEBHOOK HIT <<<")
         json_string = request.get_data().decode('utf-8')
-        logger.info(f"Update received: {json_string[:200]}")
+        logger.info(f"Update: {json_string[:200]}")
         update = telebot.types.Update.de_json(json_string)
         bot.process_new_updates([update])
-        logger.info(">>> UPDATE PROCESSED <<<")
+        logger.info(">>> PROCESSED <<<")
         return "ok", 200
     except Exception as e:
         logger.error(f"Webhook error: {e}")
@@ -257,10 +257,7 @@ def webhook():
 def ping():
     return "pong", 200
 
-# ===== AUTO-SET WEBHOOK (Gunicorn-safe, no if __name__) =====
-bot.remove_webhook()
-bot.set_webhook(url=f"{PUBLIC_URL}/webhook")
-logger.info(f"Webhook set to: {PUBLIC_URL}/webhook")
-
-# ===== START (Gunicorn will call this) =====
-app.run(host="0.0.0.0", port=PORT)
+# ===== START (No global webhook call - user sets it manually) =====
+if __name__ == "__main__":
+    # Webhook is already set manually. Do NOT call set_webhook here.
+    app.run(host="0.0.0.0", port=PORT)
