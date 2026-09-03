@@ -17,7 +17,7 @@ OWNER_ID = 2062068620
 PUBLIC_URL = "https://burhan-spy-bot-production.up.railway.app"
 PORT = int(os.environ.get('PORT', 8080))
 
-# ===== DATABASE =====
+# ===== DATABASE (Railway /tmp) =====
 DB_PATH = "/tmp/devices.db"
 conn = sqlite3.connect(DB_PATH, check_same_thread=False)
 c = conn.cursor()
@@ -244,10 +244,10 @@ def webhook():
     try:
         logger.info(">>> WEBHOOK HIT <<<")
         json_string = request.get_data().decode('utf-8')
-        logger.info(f"Update: {json_string[:200]}")
+        logger.info(f"Update received: {json_string[:200]}")
         update = telebot.types.Update.de_json(json_string)
         bot.process_new_updates([update])
-        logger.info(">>> PROCESSED <<<")
+        logger.info(">>> UPDATE PROCESSED <<<")
         return "ok", 200
     except Exception as e:
         logger.error(f"Webhook error: {e}")
@@ -257,7 +257,14 @@ def webhook():
 def ping():
     return "pong", 200
 
-# ===== START (No global webhook call - user sets it manually) =====
-if __name__ == "__main__":
-    # Webhook is already set manually. Do NOT call set_webhook here.
-    app.run(host="0.0.0.0", port=PORT)
+# ===== AUTO-SET WEBHOOK (Module Level) =====
+try:
+    logger.info("Setting webhook...")
+    bot.remove_webhook()
+    bot.set_webhook(url=f"{PUBLIC_URL}/webhook")
+    logger.info(f"Webhook set to: {PUBLIC_URL}/webhook")
+except Exception as e:
+    logger.error(f"Could not set webhook: {e}")
+
+# ===== START (NO app.run! Gunicorn handles it) =====
+# Gunicorn will serve the app object directly.
