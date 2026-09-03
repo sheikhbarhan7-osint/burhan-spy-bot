@@ -1,0 +1,15 @@
+{
+    "name": "burhan-spy-bot",
+    "version": "1.0.0",
+    "description": "Telegram Bot for Device Control",
+    "main": "bot.js",
+    "scripts": {
+        "start": "bot.js"
+    },
+    "dependencies": {
+        "node-telegram-bot-api": "^0.64.0",
+        "firebase-admin": "^12.1.0",
+        "express": "^4.18.0",
+        "axios": "^1.6.0"
+    }
+}
