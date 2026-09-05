@@ -1,79 +1,54 @@
 import os
-import logging
-from telegram import Update
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
+import asyncio
+from telethon import TelegramClient, events
+from telethon.tl.functions.users import GetFullUserRequest
 
-# Enable logging
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-                    level=logging.INFO)
-logger = logging.getLogger(__name__)
+# Get these from https://my.telegram.org (API_ID, API_HASH)
+API_ID = int(os.environ.get('API_ID'))       # Set in Railway
+API_HASH = os.environ.get('API_HASH')        # Set in Railway
+BOT_TOKEN = os.environ.get('BOT_TOKEN')      # Bot token from @BotFather
 
-BOT_TOKEN = os.environ.get('BOT_TOKEN')  # Set this in Railway environment variables
+client = TelegramClient('bot_session', API_ID, API_HASH).start(bot_token=BOT_TOKEN)
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Send me a forwarded message, and I'll extract the user's ID.\n\nUse /help for more.")
-
-async def extract_user_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    msg = update.message
-    if not msg:
-        return
+@client.on(events.NewMessage(pattern='/resolve (.*)'))
+async def resolve_user(event):
+    username = event.pattern_match.group(1).strip()
+    # Remove @ if present
+    if username.startswith('@'):
+        username = username[1:]
     
-    # Check if the message is a forward
-    if msg.forward_from:
-        original_user = msg.forward_from
-        await msg.reply_text(
-            f"Forwarded from User ID: {original_user.id}\n"
-            f"Username: @{original_user.username if original_user.username else 'No username'}\n"
-            f"First Name: {original_user.first_name}"
-        )
-    elif msg.forward_from_chat:
-        original_chat = msg.forward_from_chat
-        await msg.reply_text(
-            f"Forwarded from Chat ID: {original_chat.id}\n"
-            f"Chat Title: {original_chat.title if original_chat.title else 'No title'}"
-        )
-    elif msg.reply_to_message:
-        original = msg.reply_to_message
-        if original.from_user:
-            await msg.reply_text(
-                f"Replied to User ID: {original.from_user.id}\n"
-                f"Username: @{original.from_user.username if original.from_user.username else 'No username'}\n"
-                f"First Name: {original.from_user.first_name}"
-            )
-        elif original.forward_from:
-            # If the reply is a forwarded message, get that original sender
-            forwarded_user = original.forward_from
-            await msg.reply_text(
-                f"Reply to forwarded message – Original User ID: {forwarded_user.id}\n"
-                f"Username: @{forwarded_user.username if forwarded_user.username else 'No username'}"
-            )
-        else:
-            await msg.reply_text("Cannot extract any user ID from this reply.")
-    else:
-        await msg.reply_text("No forward/reply detected. Send a message that was forwarded or reply to a message.")
+    try:
+        # Resolve username to User object
+        user = await client.get_entity(username)
+        # Get full user info (includes about, phone if allowed)
+        full = await client(GetFullUserRequest(user))
+        
+        reply = f"Username: @{username}\n"
+        reply += f"User ID: {user.id}\n"
+        reply += f"First Name: {user.first_name}\n"
+        reply += f"Last Name: {user.last_name if user.last_name else 'N/A'}\n"
+        reply += f"Bot: {user.bot}\n"
+        if full.about:
+            reply += f"Bio: {full.about}\n"
+        # If user is a contact, we can get phone, but usually not; attempt anyway
+        if user.phone:
+            reply += f"Phone: +{user.phone}\n"
+        
+        await event.reply(reply)
+    except Exception as e:
+        await event.reply(f"Error: {str(e)}\nMaybe that username doesn't exist or is private.")
 
-async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "Commands:\n"
-        "/start - Start the bot\n"
-        "/help - Show this help\n\n"
-        "Just forward any message to me, and I'll extract the user ID.\n"
-        "Or reply to a message and I'll extract the original sender's ID."
-    )
+@client.on(events.NewMessage(pattern='/start'))
+async def start(event):
+    await event.reply("Send /resolve @username to get the user ID of any public username.")
 
-def main():
-    if not BOT_TOKEN:
-        logger.error("BOT_TOKEN environment variable not set!")
-        return
+@client.on(events.NewMessage(pattern='/help'))
+async def help(event):
+    await event.reply("Usage: /resolve @username\nExample: /resolve @someuser")
 
-    application = Application.builder().token(BOT_TOKEN).build()
-
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("help", help_command))
-    application.add_handler(MessageHandler(filters.ALL, extract_user_id))
-
-    logger.info("Bot is running...")
-    application.run_polling()
+async def main():
+    await client.start()
+    await client.run_until_disconnected()
 
 if __name__ == '__main__':
-    main()
+    asyncio.run(main())
