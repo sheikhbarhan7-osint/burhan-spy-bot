@@ -5,95 +5,136 @@ import logging
 from telethon import TelegramClient, events
 from telethon.tl.functions.users import GetFullUserRequest
 
-# Setup logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
                     level=logging.INFO)
 logger = logging.getLogger('bot')
 
-# Get credentials from Railway environment
 API_ID = int(os.environ.get('API_ID'))
 API_HASH = os.environ.get('API_HASH')
 BOT_TOKEN = os.environ.get('BOT_TOKEN')
 
-# Create client (session file will be in memory or tmp, Railway handles it)
 client = TelegramClient('bot_session', API_ID, API_HASH)
 
-def user_info(user):
-    return (f"User ID: {user.id}\n"
-            f"Username: @{user.username if user.username else 'No username'}\n"
-            f"First Name: {user.first_name}\n"
-            f"Last Name: {user.last_name if user.last_name else 'N/A'}\n"
-            f"Bot: {user.bot}")
+# ⚡ Sabse safe & advanced detail extractor
+async def get_details(entity):
+    user = await client.get_entity(entity)
+    full = await client(GetFullUserRequest(user))
+    
+    # Bio nikalne ka bug-free tarika
+    bio = None
+    if hasattr(full, 'about'):
+        bio = full.about
+    elif hasattr(full, 'full_user') and hasattr(full.full_user, 'about'):
+        bio = full.full_user.about
+        
+    username = user.username
+    first_name = user.first_name or ""
+    last_name = user.last_name or ""
+    nickname = f"{first_name} {last_name}".strip()
+    if not nickname:
+        nickname = "No Name"
+        
+    return user, username, nickname, bio
 
+# 🚀 Premium Welcome Message
 @client.on(events.NewMessage(pattern='/start'))
 async def start(event):
-    await event.reply("I'm your ID extractor bot. Send a forwarded message or use /resolve @username.")
-
-@client.on(events.NewMessage(pattern='/help'))
-async def help(event):
-    await event.reply(
-        "Commands:\n"
-        "/resolve @username – Get user ID from a public username\n"
-        "/start – Start the bot\n"
-        "/help – Show this help\n\n"
-        "Just forward any message to me, and I'll extract the original sender's ID."
+    text = (
+        "🚀 **WELCOME TO THE ULTIMATE ID EXTRACTOR** 🚀\n\n"
+        "🔥 **Premium Features Active** 🔥\n"
+        "⚡ **Forward any message** → Original sender details\n"
+        "💎 **Send any @username** → Auto-detect & extract\n"
+        "🧠 **Get User ID, Nickname, Bio Instantly!**\n\n"
+        "📸 **How to use:**\n"
+        "1️⃣ Forward any message to me\n"
+        "2️⃣ Send @username directly\n"
+        "3️⃣ Or use /resolve @username\n\n"
+        "🌟 **Powered by Telethon MTProto** 🌟"
     )
+    await event.reply(text, parse_mode='markdown')
 
-@client.on(events.NewMessage(pattern='/resolve (.+)'))
-async def resolve_username(event):
-    username = event.pattern_match.group(1).strip()
-    if username.startswith('@'):
-        username = username[1:]
-    try:
-        user = await client.get_entity(username)
-        reply = user_info(user)
-        full = await client(GetFullUserRequest(user))
-        if full.about:
-            reply += f"\nBio: {full.about}"
-        if user.phone:
-            reply += f"\nPhone: +{user.phone}"
-        await event.reply(reply)
-    except Exception as e:
-        await event.reply(f"Error: {str(e)}\nMaybe that username doesn't exist or is private.")
-
+# 🎯 Main Message Handler (Sab kuch ek saath)
 @client.on(events.NewMessage)
-async def extract_forward(event):
+async def main_handler(event):
+    text = event.raw_text
+    
+    # 1️⃣ FORWARDED MESSAGE HANDLING
     if event.message.forward:
-        if event.message.forward.from_id:
+        sender = event.message.forward.sender_id
+        if sender:
             try:
-                user = await client.get_entity(event.message.forward.from_id)
-                await event.reply("Forwarded message details:\n" + user_info(user))
-            except:
-                await event.reply("Forwarded message, but cannot extract user info.")
-        elif event.message.forward.chat_id:
-            chat = await client.get_entity(event.message.forward.chat_id)
-            await event.reply(f"Forwarded from channel:\nChat ID: {chat.id}\nTitle: {chat.title}")
-        else:
-            await event.reply("Forwarded message but no ID available.")
-    elif event.message.reply_to:
-        reply_msg = await event.message.get_reply_message()
-        if reply_msg and reply_msg.sender_id:
-            user = await client.get_entity(reply_msg.sender_id)
-            await event.reply("Replied to user details:\n" + user_info(user))
-        else:
-            await event.reply("Replied to a message but sender not found.")
+                user, username, nickname, bio = await get_details(sender)
+                reply = (
+                    f"🔫 **FORWARDED SENDER DETAILS** 🔫\n"
+                    f"━━━━━━━━━━━━━━━━━━━━━━\n"
+                    f"🆔 **User ID:** `{user.id}`\n"
+                    f"👤 **Nickname:** {nickname}\n"
+                    f"📛 **Username:** @{username if username else 'No Username'}\n"
+                )
+                if bio:
+                    reply += f"📝 **Bio:** {bio}\n"
+                reply += f"━━━━━━━━━━━━━━━━━━━━━━\n⚡ *Extracted by Advanced Bot*"
+                await event.reply(reply, parse_mode='markdown')
+            except Exception as e:
+                await event.reply(f"❌ Error: {str(e)}")
+        return
 
+    # 2️⃣ /resolve COMMAND
+    if text.startswith('/resolve '):
+        username = text.replace('/resolve ', '').strip().lstrip('@')
+        try:
+            user, username, nickname, bio = await get_details(username)
+            reply = (
+                f"🎯 **USER DETAILS FOUND** 🎯\n"
+                f"━━━━━━━━━━━━━━━━━━━━━━\n"
+                f"🆔 **User ID:** `{user.id}`\n"
+                f"👤 **Nickname:** {nickname}\n"
+                f"📛 **Username:** @{username if username else 'N/A'}\n"
+            )
+            if bio:
+                reply += f"📝 **Bio:** {bio}\n"
+            reply += f"━━━━━━━━━━━━━━━━━━━━━━\n⚡ *Extracted by Advanced Bot*"
+            await event.reply(reply, parse_mode='markdown')
+        except Exception as e:
+            await event.reply(f"❌ Error: {str(e)}\nMaybe username doesn't exist or is private.")
+        return
+
+    # 3️⃣ DIRECT USERNAME (AUTO-DETECT) - Bina command ke
+    if text.startswith('@') or (len(text) < 50 and ' ' not in text and not text.startswith('/')):
+        username = text.strip().lstrip('@')
+        try:
+            user, username, nickname, bio = await get_details(username)
+            reply = (
+                f"🎯 **USER DETAILS FOUND** 🎯\n"
+                f"━━━━━━━━━━━━━━━━━━━━━━\n"
+                f"🆔 **User ID:** `{user.id}`\n"
+                f"👤 **Nickname:** {nickname}\n"
+                f"📛 **Username:** @{username if username else 'N/A'}\n"
+            )
+            if bio:
+                reply += f"📝 **Bio:** {bio}\n"
+            reply += f"━━━━━━━━━━━━━━━━━━━━━━\n⚡ *Extracted by Advanced Bot*"
+            await event.reply(reply, parse_mode='markdown')
+        except:
+            # Agar username exist nahi karta, toh silent ignore kar
+            pass
+        return
+
+    # 4️⃣ KOI BHI / COMMAND - Help message
+    if text.startswith('/'):
+        await event.reply("🔍 Use /resolve @username ya directly @username bhejo, ya forward karo.", parse_mode='markdown')
+        return
+
+# ♾️ Never-Die Loop (Crash-proof)
 async def main():
-    try:
-        # Connect and start the bot
-        await client.start(bot_token=BOT_TOKEN)
-        logger.info("Bot started successfully. Listening for messages...")
-        await client.run_until_disconnected()
-    except Exception as e:
-        logger.error(f"Error in main: {e}")
-    finally:
-        await client.disconnect()
-
-if __name__ == '__main__':
-    # Infinite loop to restart if it crashes
     while True:
         try:
-            asyncio.run(main())
+            await client.start(bot_token=BOT_TOKEN)
+            logger.info("🚀 Premium Bot Started Successfully!")
+            await client.run_until_disconnected()
         except Exception as e:
-            logger.error(f"Bot crashed: {e}. Restarting in 5 seconds...")
+            logger.error(f"💥 Bot crashed: {e}. Restarting in 5 seconds...")
             time.sleep(5)
+
+if __name__ == '__main__':
+    asyncio.run(main())
