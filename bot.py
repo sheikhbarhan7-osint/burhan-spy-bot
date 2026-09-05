@@ -5,58 +5,64 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters, C
 
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 
-# Railway variable se Admin ID safely read karo
+# Railway variable se Admin ID safe read karo (बस start को अलग पहचानने के लिए, अब बाकी फीचर सबके लिए है)
 try:
     ADMIN_ID = int(os.environ.get("USER_ID", "0"))
 except ValueError:
     ADMIN_ID = 0
-    print("⚠️ ERROR: USER_ID variable mein sirf numbers daalo!")
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
 )
 logger = logging.getLogger(__name__)
 
-# /start command - SABKE LIYE SAME MESSAGE (Bina Admin ID ke)
+# /start command - सबके लिए सिर्फ अपनी ID दिखेगी
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     user_id = user.id
     first_name = user.first_name or "Friend"
     username = user.username or "N/A"
 
-    # यहाँ Admin ID का कोई ज़िक्र नहीं है
     welcome_message = (
         f"🌟 *Welcome, {first_name}!* 🌟\n"
         f"Thank you for using this bot.\n"
         f"📌 *Your User ID:* `{user_id}`\n"
         f"📌 *Your Username:* @{username}\n"
         f"🧾 *Main Features:*\n"
-        f"• Use /start to see this message\n"
-        f"• Admin can send forwarded messages to get original IDs\n"
+        f"• Forward any user's message to get their User ID, Name, Username & Bio\n"
         f"🤖 *Powered by:* Your Name / Brand"
     )
 
     await update.message.reply_text(welcome_message, parse_mode="Markdown")
 
-# Admin का खास काम (Forward messages से ID निकालना)
-async def admin_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.effective_user
-    # अगर यूज़र Admin नहीं है (ID match नहीं हुई), तो बोट चुप रहेगा
-    if user.id != ADMIN_ID:
-        return
-
+# अब ये function सबके लिए है (कोई Admin check नहीं)
+async def get_user_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
     message = update.message
 
-    # अगर user से forward हुआ है
+    # अगर किसी यूज़र का message forward किया गया है
     if message.forward_from:
         original_user_id = message.forward_from.id
         original_name = message.forward_from.first_name
-        await update.message.reply_text(
+        username = message.forward_from.username or "N/A"
+
+        # Bio निकालने की कोशिश करें
+        bio = "N/A"
+        try:
+            chat_info = await context.bot.get_chat(original_user_id)
+            if chat_info.bio:
+                bio = chat_info.bio
+        except Exception:
+            pass  # अगर bio नहीं मिल पाता तो N/A ही रहेगा
+
+        reply_text = (
             f"🔍 *Original User ID:* `{original_user_id}`\n"
-            f"👤 *Name:* {original_name}",
-            parse_mode="Markdown"
+            f"👤 *Name (Nickname):* {original_name}\n"
+            f"📌 *Username:* @{username}\n"
+            f"📝 *Bio:* {bio}"
         )
-    # अगर channel से forward हुआ है
+        await update.message.reply_text(reply_text, parse_mode="Markdown")
+
+    # अगर किसी Channel का message forward किया गया है
     elif message.forward_from_chat:
         chat_id = message.forward_from_chat.id
         chat_title = message.forward_from_chat.title or "Channel"
@@ -65,11 +71,13 @@ async def admin_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"🏷️ *Title:* {chat_title}",
             parse_mode="Markdown"
         )
-    # अगर forward नहीं है
+    
+    # अगर किसी ने बिना forward किए सीधा मैसेज भेजा है
     else:
+        user = update.effective_user
         await update.message.reply_text(
             f"👤 *Your User ID:* `{user.id}`\n"
-            f"Please forward any message to get its original sender's ID.",
+            f"❌ *Note:* कृपया किसी दूसरे बंदे का मैसेज forward करके भेजो, ताकि उसकी ID, नाम और Bio निकाल सकूं।",
             parse_mode="Markdown"
         )
 
@@ -79,7 +87,7 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def main():
     application = Application.builder().token(BOT_TOKEN).build()
     application.add_handler(CommandHandler("start", start))
-    application.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, admin_message))
+    application.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, get_user_info))
     application.add_error_handler(error_handler)
     application.run_polling(allowed_updates=Update.ALL_TYPES)
 
