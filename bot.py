@@ -4,6 +4,7 @@ import time
 import logging
 from telethon import TelegramClient, events
 from telethon.tl.functions.users import GetFullUserRequest
+from telethon.tl.types import PeerUser, PeerChannel
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
                     level=logging.INFO)
@@ -15,28 +16,45 @@ BOT_TOKEN = os.environ.get('BOT_TOKEN')
 
 client = TelegramClient('bot_session', API_ID, API_HASH)
 
-# ⚡ Sabse safe & advanced detail extractor
-async def get_details(entity):
+# 🧠 Universal detail extractor (User ya Channel dono handle karta hai)
+async def get_user_details(entity):
+    """
+    entity -> Username string, User ID integer, or Peer object
+    Returns: (type, id, name, username, bio)
+    """
     user = await client.get_entity(entity)
     full = await client(GetFullUserRequest(user))
     
-    # Bio nikalne ka bug-free tarika
+    # Safe bio extraction (fixes 'UserFull has no attribute about')
     bio = None
     if hasattr(full, 'about'):
         bio = full.about
     elif hasattr(full, 'full_user') and hasattr(full.full_user, 'about'):
         bio = full.full_user.about
-        
-    username = user.username
-    first_name = user.first_name or ""
-    last_name = user.last_name or ""
-    nickname = f"{first_name} {last_name}".strip()
-    if not nickname:
-        nickname = "No Name"
-        
-    return user, username, nickname, bio
 
-# 🚀 Premium Welcome Message
+    if isinstance(user, PeerChannel) or hasattr(user, 'title'):
+        # Channel
+        return {
+            'type': 'channel',
+            'id': user.id,
+            'name': user.title,
+            'username': user.username,
+            'bio': bio
+        }
+    else:
+        # User
+        nickname = f"{user.first_name or ''} {user.last_name or ''}".strip()
+        if not nickname:
+            nickname = "No Name"
+        return {
+            'type': 'user',
+            'id': user.id,
+            'name': nickname,
+            'username': user.username,
+            'bio': bio
+        }
+
+# 🎉 Premium Welcome Message
 @client.on(events.NewMessage(pattern='/start'))
 async def start(event):
     text = (
@@ -53,79 +71,118 @@ async def start(event):
     )
     await event.reply(text, parse_mode='markdown')
 
-# 🎯 Main Message Handler (Sab kuch ek saath)
+# 🎯 Main Handler – sab kuch yahan handle hota hai
 @client.on(events.NewMessage)
 async def main_handler(event):
     text = event.raw_text
-    
-    # 1️⃣ FORWARDED MESSAGE HANDLING
+
+    # 1️⃣ FORWARDED MESSAGE HANDLING (FIXED!)
     if event.message.forward:
-        sender = event.message.forward.sender_id
-        if sender:
+        fwd = event.message.forward
+        if fwd.from_id:
+            # fwd.from_id is the original sender (User or Channel)
             try:
-                user, username, nickname, bio = await get_details(sender)
-                reply = (
-                    f"🔫 **FORWARDED SENDER DETAILS** 🔫\n"
-                    f"━━━━━━━━━━━━━━━━━━━━━━\n"
-                    f"🆔 **User ID:** `{user.id}`\n"
-                    f"👤 **Nickname:** {nickname}\n"
-                    f"📛 **Username:** @{username if username else 'No Username'}\n"
-                )
-                if bio:
-                    reply += f"📝 **Bio:** {bio}\n"
-                reply += f"━━━━━━━━━━━━━━━━━━━━━━\n⚡ *Extracted by Advanced Bot*"
+                details = await get_user_details(fwd.from_id)
+                if details['type'] == 'user':
+                    reply = (
+                        f"🔫 **FORWARDED USER DETAILS** 🔫\n"
+                        f"━━━━━━━━━━━━━━━━━━━━━━\n"
+                        f"🆔 **User ID:** `{details['id']}`\n"
+                        f"👤 **Nickname:** {details['name']}\n"
+                        f"📛 **Username:** @{details['username'] if details['username'] else 'No Username'}\n"
+                    )
+                    if details['bio']:
+                        reply += f"📝 **Bio:** {details['bio']}\n"
+                    reply += f"━━━━━━━━━━━━━━━━━━━━━━\n⚡ *Extracted by Advanced Bot*"
+                else:
+                    reply = (
+                        f"📢 **FORWARDED CHANNEL DETAILS** 📢\n"
+                        f"━━━━━━━━━━━━━━━━━━━━━━\n"
+                        f"🆔 **Channel ID:** `{details['id']}`\n"
+                        f"📛 **Channel Name:** {details['name']}\n"
+                        f"🔗 **Username:** @{details['username'] if details['username'] else 'N/A'}\n"
+                    )
+                    if details['bio']:
+                        reply += f"📝 **Description:** {details['bio']}\n"
+                    reply += f"━━━━━━━━━━━━━━━━━━━━━━\n⚡ *Extracted by Advanced Bot*"
                 await event.reply(reply, parse_mode='markdown')
             except Exception as e:
                 await event.reply(f"❌ Error: {str(e)}")
+        else:
+            await event.reply("❌ Is forward message se original sender nahi mila.")
         return
 
     # 2️⃣ /resolve COMMAND
     if text.startswith('/resolve '):
         username = text.replace('/resolve ', '').strip().lstrip('@')
         try:
-            user, username, nickname, bio = await get_details(username)
-            reply = (
-                f"🎯 **USER DETAILS FOUND** 🎯\n"
-                f"━━━━━━━━━━━━━━━━━━━━━━\n"
-                f"🆔 **User ID:** `{user.id}`\n"
-                f"👤 **Nickname:** {nickname}\n"
-                f"📛 **Username:** @{username if username else 'N/A'}\n"
-            )
-            if bio:
-                reply += f"📝 **Bio:** {bio}\n"
-            reply += f"━━━━━━━━━━━━━━━━━━━━━━\n⚡ *Extracted by Advanced Bot*"
+            details = await get_user_details(username)
+            if details['type'] == 'user':
+                reply = (
+                    f"🎯 **USER DETAILS FOUND** 🎯\n"
+                    f"━━━━━━━━━━━━━━━━━━━━━━\n"
+                    f"🆔 **User ID:** `{details['id']}`\n"
+                    f"👤 **Nickname:** {details['name']}\n"
+                    f"📛 **Username:** @{details['username'] if details['username'] else 'N/A'}\n"
+                )
+                if details['bio']:
+                    reply += f"📝 **Bio:** {details['bio']}\n"
+                reply += f"━━━━━━━━━━━━━━━━━━━━━━\n⚡ *Extracted by Advanced Bot*"
+            else:
+                reply = (
+                    f"📢 **CHANNEL DETAILS** 📢\n"
+                    f"━━━━━━━━━━━━━━━━━━━━━━\n"
+                    f"🆔 **Channel ID:** `{details['id']}`\n"
+                    f"📛 **Channel Name:** {details['name']}\n"
+                    f"🔗 **Username:** @{details['username'] if details['username'] else 'N/A'}\n"
+                )
+                if details['bio']:
+                    reply += f"📝 **Description:** {details['bio']}\n"
+                reply += f"━━━━━━━━━━━━━━━━━━━━━━\n⚡ *Extracted by Advanced Bot*"
             await event.reply(reply, parse_mode='markdown')
         except Exception as e:
             await event.reply(f"❌ Error: {str(e)}\nMaybe username doesn't exist or is private.")
         return
 
-    # 3️⃣ DIRECT USERNAME (AUTO-DETECT) - Bina command ke
+    # 3️⃣ DIRECT USERNAME AUTO-DETECT (bina command ke)
     if text.startswith('@') or (len(text) < 50 and ' ' not in text and not text.startswith('/')):
         username = text.strip().lstrip('@')
         try:
-            user, username, nickname, bio = await get_details(username)
-            reply = (
-                f"🎯 **USER DETAILS FOUND** 🎯\n"
-                f"━━━━━━━━━━━━━━━━━━━━━━\n"
-                f"🆔 **User ID:** `{user.id}`\n"
-                f"👤 **Nickname:** {nickname}\n"
-                f"📛 **Username:** @{username if username else 'N/A'}\n"
-            )
-            if bio:
-                reply += f"📝 **Bio:** {bio}\n"
-            reply += f"━━━━━━━━━━━━━━━━━━━━━━\n⚡ *Extracted by Advanced Bot*"
+            details = await get_user_details(username)
+            if details['type'] == 'user':
+                reply = (
+                    f"🎯 **USER DETAILS FOUND** 🎯\n"
+                    f"━━━━━━━━━━━━━━━━━━━━━━\n"
+                    f"🆔 **User ID:** `{details['id']}`\n"
+                    f"👤 **Nickname:** {details['name']}\n"
+                    f"📛 **Username:** @{details['username'] if details['username'] else 'N/A'}\n"
+                )
+                if details['bio']:
+                    reply += f"📝 **Bio:** {details['bio']}\n"
+                reply += f"━━━━━━━━━━━━━━━━━━━━━━\n⚡ *Extracted by Advanced Bot*"
+            else:
+                reply = (
+                    f"📢 **CHANNEL DETAILS** 📢\n"
+                    f"━━━━━━━━━━━━━━━━━━━━━━\n"
+                    f"🆔 **Channel ID:** `{details['id']}`\n"
+                    f"📛 **Channel Name:** {details['name']}\n"
+                    f"🔗 **Username:** @{details['username'] if details['username'] else 'N/A'}\n"
+                )
+                if details['bio']:
+                    reply += f"📝 **Description:** {details['bio']}\n"
+                reply += f"━━━━━━━━━━━━━━━━━━━━━━\n⚡ *Extracted by Advanced Bot*"
             await event.reply(reply, parse_mode='markdown')
         except:
-            # Agar username exist nahi karta, toh silent ignore kar
+            # Agar username invalid hai, silently ignore
             pass
         return
 
-    # 4️⃣ KOI BHI / COMMAND - Help message
+    # 4️⃣ Kisi aur command ke liye help
     if text.startswith('/'):
         await event.reply("🔍 Use /resolve @username ya directly @username bhejo, ya forward karo.", parse_mode='markdown')
         return
 
-# ♾️ Never-Die Loop (Crash-proof)
+# ♾️ Crash-Proof Restart Loop
 async def main():
     while True:
         try:
