@@ -15,7 +15,7 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeybo
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram.utils import executor
 from aiogram.dispatcher.filters.state import State, StatesGroup
-from aiogram.utils.executor import FSMContext
+from aiogram.dispatcher import FSMContext
 
 load_dotenv()
 API_TOKEN = "8934190630:AAF7KxI7j7iw1LaMfsUJiBfsPty6bk-bnEc"
