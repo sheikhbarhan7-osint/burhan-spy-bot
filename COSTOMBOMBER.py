@@ -22,7 +22,9 @@ bot = Bot(token=API_TOKEN)
 storage = MemoryStorage()
 dp = Dispatcher(bot, storage=storage)
 
-    format="%(asctime)s [%(levelname)s] %(name)s — %(message)s",
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s - %(message)s",
     datefmt="%H:%M:%S"
 )
 log = logging.getLogger("BlastBot")
