@@ -26,7 +26,8 @@ dp = Dispatcher(bot, storage=storage)
 class CommandStart:
     def __init__(self, *args, **kwargs):
         pass
-class Router:
+    def __call__(self, message):
+        return True
     def __init__(self):
         pass
     def message(self, *args, **kwargs):
