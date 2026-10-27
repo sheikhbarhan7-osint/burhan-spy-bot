@@ -22,6 +22,9 @@ API_TOKEN = "8934190630:AAF7KxI7j7iw1LaMfsUJiBfsPty6bk-bnEc"
 bot = Bot(token=API_TOKEN)
 storage = MemoryStorage()
 dp = Dispatcher(bot, storage=storage)
+class CommandStart:
+    def __init__(self, *args, **kwargs):
+        pass
 
 class Router:
     def __init__(self):
@@ -32,7 +35,6 @@ class Router:
         return dp.callback_query(*args, **kwargs)
     def include_router(self, *args, **kwargs):
         pass
-
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s - %(message)s",
