@@ -14,6 +14,7 @@ from aiogram import Bot, Dispatcher, types
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, KeyboardButton, Message, CallbackQuery
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram.utils import executor
+from aiogram.dispatcher.filters.state import State, StatesGroup
 
 load_dotenv()
 API_TOKEN = "8934190630:AAF7KxI7j7iw1LaMfsUJiBfsPty6bk-bnEc"
