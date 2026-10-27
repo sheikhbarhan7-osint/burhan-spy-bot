@@ -23,10 +23,8 @@ bot = Bot(token=API_TOKEN)
 storage = MemoryStorage()
 dp = Dispatcher(bot, storage=storage)
 class CommandStart:
-  class CommandStart:
     def __init__(self, *args, **kwargs):
         pass
-
 class Router:
     def __init__(self):
         pass
