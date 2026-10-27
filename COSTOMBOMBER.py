@@ -23,6 +23,7 @@ bot = Bot(token=API_TOKEN)
 storage = MemoryStorage()
 dp = Dispatcher(bot, storage=storage)
 class CommandStart:
+  class CommandStart:
     def __init__(self, *args, **kwargs):
         pass
 
@@ -30,9 +31,13 @@ class Router:
     def __init__(self):
         pass
     def message(self, *args, **kwargs):
-        return dp.message(*args, **kwargs)
+        def decorator(func):
+            return dp.message_handler(*args, **kwargs)(func)
+        return decorator
     def callback_query(self, *args, **kwargs):
-        return dp.callback_query(*args, **kwargs)
+        def decorator(func):
+            return dp.callback_query_handler(*args, **kwargs)(func)
+        return decorator
     def include_router(self, *args, **kwargs):
         pass
 logging.basicConfig(
