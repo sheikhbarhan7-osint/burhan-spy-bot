@@ -18,7 +18,7 @@ from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram.utils import executor
 
 load_dotenv()
-API_TOKEN = os.getenv("BOT_TOKEN")
+API_TOKEN = os.getenv("8934190630:AAF7KxI7j7iw1LaMfsUJiBfsPty6bk-bnEc")
 
 bot = Bot(token=API_TOKEN)
 storage = MemoryStorage()
