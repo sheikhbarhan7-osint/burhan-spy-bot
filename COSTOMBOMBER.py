@@ -30,6 +30,11 @@ class CommandStart:
         pass
     def __call__(self, message):
         return True
+        class Command:
+    def __init__(self, *args, **kwargs):
+        pass
+    def __call__(self, message):
+        return True
 
 class Router:
     def __init__(self):
