@@ -8,21 +8,19 @@ from copy import deepcopy
 from collections import defaultdict
 
 import aiohttp
-import os
 import sys
-import logging
-import asyncio
 from dotenv import load_dotenv
 from aiogram import Bot, Dispatcher, types
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram.utils import executor
 
 load_dotenv()
-API_TOKEN = os.getenv("8934190630:AAF7KxI7j7iw1LaMfsUJiBfsPty6bk-bnEc")
+API_TOKEN = "8934190630:AAF7KxI7j7iw1LaMfsUJiBfsPty6bk-bnEc"
 
 bot = Bot(token=API_TOKEN)
 storage = MemoryStorage()
 dp = Dispatcher(bot, storage=storage)
+
 
 logging.basicConfig(
     level=logging.INFO,
