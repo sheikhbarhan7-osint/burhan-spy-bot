@@ -8,19 +8,21 @@ from copy import deepcopy
 from collections import defaultdict
 
 import aiohttp
-from aiogram import Bot, Dispatcher, F, Router
-from aiogram.types import (
-    Message, CallbackQuery,
-    InlineKeyboardMarkup, InlineKeyboardButton,
-    ReplyKeyboardMarkup, KeyboardButton,
-    ChatMemberUpdated,
-    FSInputFile
-)
-from aiogram.filters import Command, CommandStart
-from aiogram.fsm.context import FSMContext
-from aiogram.fsm.state import State, StatesGroup
-from aiogram.fsm.storage.memory import MemoryStorage
-from aiogram.exceptions import TelegramBadRequest
+import os
+import sys
+import logging
+import asyncio
+from dotenv import load_dotenv
+from aiogram import Bot, Dispatcher, types
+from aiogram.contrib.fsm_storage.memory import MemoryStorage
+from aiogram.utils import executor
+
+load_dotenv()
+API_TOKEN = os.getenv("BOT_TOKEN")
+
+bot = Bot(token=API_TOKEN)
+storage = MemoryStorage()
+dp = Dispatcher(bot, storage=storage)
 
 logging.basicConfig(
     level=logging.INFO,
