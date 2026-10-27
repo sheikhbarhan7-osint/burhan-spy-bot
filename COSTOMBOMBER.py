@@ -23,11 +23,14 @@ API_TOKEN = "8934190630:AAF7KxI7j7iw1LaMfsUJiBfsPty6bk-bnEc"
 bot = Bot(token=API_TOKEN)
 storage = MemoryStorage()
 dp = Dispatcher(bot, storage=storage)
+
 class CommandStart:
     def __init__(self, *args, **kwargs):
         pass
     def __call__(self, message):
         return True
+
+class Router:
     def __init__(self):
         pass
     def message(self, *args, **kwargs):
@@ -40,9 +43,8 @@ class CommandStart:
         return decorator
     def include_router(self, *args, **kwargs):
         pass
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s - %(message)s",
+
+R = Router()
     datefmt="%H:%M:%S"
 )
 log = logging.getLogger("BlastBot")
