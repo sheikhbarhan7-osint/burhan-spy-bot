@@ -16,6 +16,7 @@ from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram.utils import executor
 from aiogram.dispatcher.filters.state import State, StatesGroup
 from aiogram.dispatcher import FSMContext
+import logging
 
 load_dotenv()
 API_TOKEN = "8934190630:AAF7KxI7j7iw1LaMfsUJiBfsPty6bk-bnEc"
@@ -45,10 +46,13 @@ class Router:
         pass
 
 R = Router()
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s - %(message)s",
     datefmt="%H:%M:%S"
 )
 log = logging.getLogger("BlastBot")
-
 # ========== PREMIUM EMOJI IDs ==========
 EMOJI_FIRE = "5289722755871162900"      # 🔥
 EMOJI_STAR = "5372849966689566579"      # ⭐
